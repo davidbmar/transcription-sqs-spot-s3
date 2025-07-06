@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# step-999-cleanup-resources.sh - Clean up AWS resources created by the transcription system
+# step-999-terminate-workers-or-selective-cleanup.sh - Clean up AWS resources created by the transcription system
 
 set -e
 
@@ -10,6 +10,32 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Display script information
+echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║          Selective Resource Cleanup Script                    ║${NC}"
+echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════╝${NC}"
+echo
+echo -e "${YELLOW}This script provides selective cleanup options:${NC}"
+echo
+echo -e "${GREEN}Option 1: --workers-only${NC}"
+echo "  • Terminates all EC2 spot instances (workers)"
+echo "  • Cancels active spot requests"
+echo "  • Preserves SQS queues and S3 buckets"
+echo "  • Use when you want to stop workers but keep infrastructure"
+echo
+echo -e "${GREEN}Option 2: --all${NC}"
+echo "  • Removes ALL resources except audio bucket:"
+echo "    - EC2 instances and spot requests"
+echo "    - SQS queues (main + DLQ)"
+echo "    - S3 metrics bucket"
+echo "    - Security groups and key pairs"
+echo "    - IAM roles and policies"
+echo "  • Preserves audio bucket to prevent data loss"
+echo "  • Use for complete cleanup while keeping your data"
+echo
+echo -e "${YELLOW}Usage:${NC} $0 [--workers-only | --all]"
+echo
 
 # Parse command line arguments
 CLEANUP_WORKERS_ONLY=0
@@ -43,11 +69,34 @@ done
 
 # Check if no options provided
 if [ $CLEANUP_WORKERS_ONLY -eq 0 ] && [ $CLEANUP_ALL -eq 0 ]; then
-    echo -e "${YELLOW}[WARNING]${NC} No cleanup option specified."
-    echo "Use --workers-only to terminate instances only"
-    echo "Use --all to remove all resources"
+    echo -e "${RED}[ERROR]${NC} No cleanup option specified."
+    echo
+    echo "Please specify one of:"
+    echo "  $0 --workers-only    # Terminate EC2 instances only"
+    echo "  $0 --all            # Remove all resources"
+    echo
     exit 1
 fi
+
+# Confirmation prompt
+if [ $CLEANUP_WORKERS_ONLY -eq 1 ]; then
+    echo -e "${YELLOW}You selected: --workers-only${NC}"
+    echo "This will terminate all EC2 worker instances but preserve queues and buckets."
+    echo
+    read -p "Do you want to proceed? (yes/no): " CONFIRM
+elif [ $CLEANUP_ALL -eq 1 ]; then
+    echo -e "${RED}You selected: --all${NC}"
+    echo "This will remove ALL resources except the audio bucket!"
+    echo
+    read -p "Are you sure you want to proceed? (yes/no): " CONFIRM
+fi
+
+if [ "$CONFIRM" != "yes" ]; then
+    echo -e "${YELLOW}[INFO]${NC} Cleanup cancelled."
+    exit 0
+fi
+
+echo
 
 # Load configuration
 CONFIG_FILE=".env"

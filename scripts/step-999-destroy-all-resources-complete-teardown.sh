@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# step-999-destroy-all.sh - Destroy all resources and configuration
+# step-999-destroy-all-resources-complete-teardown.sh - Destroy all resources and configuration
 
 set -e
 
@@ -11,6 +11,48 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
+
+# Display script information
+echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║         COMPLETE SYSTEM TEARDOWN - DESTROY ALL                ║${NC}"
+echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
+echo
+echo -e "${RED}⚠️  WARNING: This script performs a COMPLETE TEARDOWN! ⚠️${NC}"
+echo
+echo -e "${YELLOW}This script will PERMANENTLY DELETE:${NC}"
+echo
+echo -e "${RED}AWS Resources:${NC}"
+echo "  • All EC2 instances and spot requests"
+echo "  • SQS queues (main queue + dead letter queue)"
+echo "  • S3 metrics bucket and all its contents"
+echo "  • Security groups and key pairs"
+echo "  • IAM roles, policies, and instance profiles"
+echo
+echo -e "${RED}Local Files:${NC}"
+echo "  • All configuration files (.env, status files)"
+echo "  • Generated credentials and keys"
+echo "  • Setup tracking files"
+echo
+echo -e "${GREEN}What will be PRESERVED:${NC}"
+echo "  • Audio bucket (to prevent data loss)"
+echo "  • Your source code and git repository"
+echo
+echo -e "${YELLOW}When to use this script:${NC}"
+echo "  • Starting completely fresh from scratch"
+echo "  • Cleaning up after testing/development"
+echo "  • Removing all traces of the system"
+echo
+echo -e "${YELLOW}Alternative:${NC} Use step-999-terminate-workers-or-selective-cleanup.sh"
+echo "for selective cleanup that preserves infrastructure."
+echo
+
+# Initial confirmation
+read -p "Do you want to proceed with COMPLETE TEARDOWN? (yes/no): " INITIAL_CONFIRM
+
+if [ "$INITIAL_CONFIRM" != "yes" ]; then
+    echo -e "${GREEN}[INFO]${NC} Teardown cancelled. No resources were affected."
+    exit 0
+fi
 
 # Function to print colored output
 print_header() {
