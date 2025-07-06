@@ -65,7 +65,10 @@ class Transcriber:
 
         try:
             logger.info(f"Loading WhisperX model {self.model_name} on {self.device}")
-            self.model = whisperx.load_model(self.model_name, self.device)
+            # Use float32 for CPU to avoid float16 computation issues
+            compute_type = "float32" if self.device == "cpu" else "float16"
+            logger.info(f"Using compute_type: {compute_type}")
+            self.model = whisperx.load_model(self.model_name, self.device, compute_type=compute_type)
 
             # Load alignment model for improved word-level timestamps
             logger.info("Loading alignment model")
