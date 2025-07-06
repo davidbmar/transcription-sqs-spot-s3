@@ -1,6 +1,20 @@
 #!/bin/bash
 
 # step-010-setup-iam-permissions.sh - Set up IAM permissions for the transcription system
+#
+# SMART VERSIONING IMPLEMENTATION:
+# This script implements intelligent IAM policy version management to prevent AWS's 5-version limit.
+# Instead of creating new versions on every run, it:
+# 1. Compares current policy with new policy content
+# 2. Only creates new versions when actual changes are detected
+# 3. Automatically cleans up old versions when approaching the limit
+# 4. Uses normalized JSON comparison (sorted arrays, consistent formatting)
+#
+# Benefits:
+# - Prevents "LimitExceeded" errors from too many policy versions
+# - Makes the script idempotent (safe to run multiple times)
+# - Reduces clutter in IAM policy version history
+# - Provides clear feedback about what changes triggered updates
 
 set -e
 
@@ -175,36 +189,59 @@ cat > /tmp/transcription-user-policy.json << EOF
 }
 EOF
 
-# Check if policy already exists
+# Check if policy already exists and implement smart versioning
+# This prevents creating unnecessary policy versions and hitting AWS's 5-version limit
 POLICY_ARN="arn:aws:iam::$ACCOUNT_ID:policy/TranscriptionSystemUserPolicy"
 if aws iam get-policy --policy-arn "$POLICY_ARN" 2>/dev/null; then
-    print_warning "Policy already exists, updating..."
+    print_warning "Policy already exists, checking for changes..."
+    print_status "Using smart versioning: only creating new versions when policy content changes"
     
-    # Get list of policy versions
-    VERSIONS=$(aws iam list-policy-versions \
+    # Get current default policy document and normalize for comparison
+    # Normalization ensures consistent formatting and array ordering
+    CURRENT_VERSION=$(aws iam get-policy --policy-arn "$POLICY_ARN" --query 'Policy.DefaultVersionId' --output text)
+    CURRENT_POLICY=$(aws iam get-policy-version \
         --policy-arn "$POLICY_ARN" \
-        --query 'Versions[?!IsDefaultVersion].VersionId' \
-        --output text)
+        --version-id "$CURRENT_VERSION" \
+        --query 'PolicyVersion.Document' \
+        --output json | jq -c 'walk(if type == "array" then sort else . end)')
     
-    # Delete oldest non-default version if we have 5 versions
-    VERSION_COUNT=$(echo $VERSIONS | wc -w)
-    if [ $VERSION_COUNT -ge 4 ]; then
-        OLDEST_VERSION=$(echo $VERSIONS | awk '{print $1}')
-        print_status "Deleting old policy version $OLDEST_VERSION to make room..."
-        aws iam delete-policy-version \
+    # Normalize new policy for comparison (sorts arrays, removes whitespace)
+    NEW_POLICY=$(cat /tmp/transcription-user-policy.json | jq -c 'walk(if type == "array" then sort else . end)')
+    
+    # Compare normalized policies to detect actual changes
+    if [ "$CURRENT_POLICY" = "$NEW_POLICY" ]; then
+        print_status "✓ Policy content unchanged - skipping version creation"
+        print_status "This prevents unnecessary version buildup (AWS limit: 5 versions)"
+    else
+        print_status "✗ Policy content has changed - creating new version"
+        print_status "Change detection prevents version limit issues"
+        
+        # Get list of policy versions
+        VERSIONS=$(aws iam list-policy-versions \
             --policy-arn "$POLICY_ARN" \
-            --version-id "$OLDEST_VERSION"
+            --query 'Versions[?!IsDefaultVersion].VersionId' \
+            --output text)
+        
+        # Delete oldest non-default version if we have 5 versions
+        VERSION_COUNT=$(echo $VERSIONS | wc -w)
+        if [ $VERSION_COUNT -ge 4 ]; then
+            OLDEST_VERSION=$(echo $VERSIONS | awk '{print $1}')
+            print_status "Deleting old policy version $OLDEST_VERSION to make room..."
+            aws iam delete-policy-version \
+                --policy-arn "$POLICY_ARN" \
+                --version-id "$OLDEST_VERSION"
+        fi
+        
+        # Create new version of the policy
+        POLICY_VERSION=$(aws iam create-policy-version \
+            --policy-arn "$POLICY_ARN" \
+            --policy-document file:///tmp/transcription-user-policy.json \
+            --set-as-default \
+            --query 'PolicyVersion.VersionId' \
+            --output text)
+        
+        print_status "Policy updated with version: $POLICY_VERSION"
     fi
-    
-    # Create new version of the policy
-    POLICY_VERSION=$(aws iam create-policy-version \
-        --policy-arn "$POLICY_ARN" \
-        --policy-document file:///tmp/transcription-user-policy.json \
-        --set-as-default \
-        --query 'PolicyVersion.VersionId' \
-        --output text)
-    
-    print_status "Policy updated with version: $POLICY_VERSION"
 else
     # Create the policy
     POLICY_ARN=$(aws iam create-policy \
@@ -327,36 +364,57 @@ cat > /tmp/transcription-worker-policy.json << EOF
 }
 EOF
 
-# Attach policy to role
+# Create/update worker policy with smart versioning
 WORKER_POLICY_ARN="arn:aws:iam::$ACCOUNT_ID:policy/TranscriptionWorkerPolicy"
 if aws iam get-policy --policy-arn "$WORKER_POLICY_ARN" 2>/dev/null; then
-    print_warning "Worker policy already exists, updating..."
+    print_warning "Worker policy already exists, checking for changes..."
+    print_status "Applying smart versioning to worker policy"
     
-    # Get list of policy versions
-    VERSIONS=$(aws iam list-policy-versions \
+    # Get current default policy document and normalize for comparison
+    CURRENT_VERSION=$(aws iam get-policy --policy-arn "$WORKER_POLICY_ARN" --query 'Policy.DefaultVersionId' --output text)
+    CURRENT_POLICY=$(aws iam get-policy-version \
         --policy-arn "$WORKER_POLICY_ARN" \
-        --query 'Versions[?!IsDefaultVersion].VersionId' \
-        --output text)
+        --version-id "$CURRENT_VERSION" \
+        --query 'PolicyVersion.Document' \
+        --output json | jq -c 'walk(if type == "array" then sort else . end)')
     
-    # Delete oldest non-default version if we have 5 versions
-    VERSION_COUNT=$(echo $VERSIONS | wc -w)
-    if [ $VERSION_COUNT -ge 4 ]; then
-        OLDEST_VERSION=$(echo $VERSIONS | awk '{print $1}')
-        print_status "Deleting old policy version $OLDEST_VERSION to make room..."
-        aws iam delete-policy-version \
+    # Normalize new policy for comparison
+    NEW_POLICY=$(cat /tmp/transcription-worker-policy.json | jq -c 'walk(if type == "array" then sort else . end)')
+    
+    # Compare policies with change detection
+    if [ "$CURRENT_POLICY" = "$NEW_POLICY" ]; then
+        print_status "✓ Worker policy content unchanged - no update needed"
+        print_status "Smart versioning: avoiding unnecessary policy version creation"
+    else
+        print_status "✗ Worker policy content has changed - updating"
+        print_status "Creating new version due to detected policy changes"
+        
+        # Get list of policy versions
+        VERSIONS=$(aws iam list-policy-versions \
             --policy-arn "$WORKER_POLICY_ARN" \
-            --version-id "$OLDEST_VERSION"
+            --query 'Versions[?!IsDefaultVersion].VersionId' \
+            --output text)
+        
+        # Delete oldest non-default version if we have 5 versions
+        VERSION_COUNT=$(echo $VERSIONS | wc -w)
+        if [ $VERSION_COUNT -ge 4 ]; then
+            OLDEST_VERSION=$(echo $VERSIONS | awk '{print $1}')
+            print_status "Deleting old policy version $OLDEST_VERSION to make room..."
+            aws iam delete-policy-version \
+                --policy-arn "$WORKER_POLICY_ARN" \
+                --version-id "$OLDEST_VERSION"
+        fi
+        
+        # Create new version of the policy
+        POLICY_VERSION=$(aws iam create-policy-version \
+            --policy-arn "$WORKER_POLICY_ARN" \
+            --policy-document file:///tmp/transcription-worker-policy.json \
+            --set-as-default \
+            --query 'PolicyVersion.VersionId' \
+            --output text)
+        
+        print_status "Worker policy updated with version: $POLICY_VERSION"
     fi
-    
-    # Create new version of the policy
-    POLICY_VERSION=$(aws iam create-policy-version \
-        --policy-arn "$WORKER_POLICY_ARN" \
-        --policy-document file:///tmp/transcription-worker-policy.json \
-        --set-as-default \
-        --query 'PolicyVersion.VersionId' \
-        --output text)
-    
-    print_status "Worker policy updated with version: $POLICY_VERSION"
 else
     aws iam create-policy \
         --policy-name TranscriptionWorkerPolicy \
