@@ -218,23 +218,32 @@ class TranscriptionWorker:
             priority = body.get('priority', 1)
             retry_count = body.get('retry_count', 0)
             
-            logger.info(f"Processing job {job_id}: {s3_input_path} -> {s3_output_path}")
+            logger.info(f"🎬 STARTING JOB {job_id}")
+            logger.info(f"📥 Input: {s3_input_path}")
+            logger.info(f"📤 Output: {s3_output_path}")
+            logger.info(f"⏱️ Estimated Duration: {estimated_duration_seconds}s")
+            logger.info(f"🔄 Retry Count: {retry_count}")
             
             # Download audio file
+            logger.info(f"📁 Step 1: Downloading audio from S3...")
             local_audio_path = self.download_audio_from_s3(s3_input_path)
+            logger.info(f"✅ Downloaded to: {local_audio_path}")
             
             try:
                 # Transcribe audio
-                logger.info(f"Transcribing audio file: {local_audio_path}")
+                logger.info(f"🎙️ Step 2: Starting transcription...")
+                logger.info(f"📋 Audio file: {local_audio_path}")
                 start_time = time.time()
                 
                 # Use the existing transcriber
                 transcript_result = self.transcriber.transcribe_audio(local_audio_path)
                 
                 actual_duration = time.time() - start_time
-                logger.info(f"Transcription completed in {actual_duration:.2f} seconds")
+                logger.info(f"✅ Transcription completed in {actual_duration:.2f} seconds")
+                logger.info(f"📊 Generated {len(transcript_result.get('segments', []))} segments")
                 
                 # Create output transcript
+                logger.info(f"📝 Step 3: Creating transcript output...")
                 output_data = {
                     "job_id": job_id,
                     "s3_input_path": s3_input_path,
@@ -250,30 +259,37 @@ class TranscriptionWorker:
                 
                 # Save to local file
                 local_output_path = os.path.join(self.temp_dir, f"{job_id}_transcript.json")
+                logger.info(f"💾 Saving transcript to: {local_output_path}")
                 with open(local_output_path, 'w') as f:
                     json.dump(output_data, f, indent=2)
                 
                 # Upload to S3
+                logger.info(f"☁️ Step 4: Uploading transcript to S3...")
                 self.upload_transcript_to_s3(local_output_path, s3_output_path)
+                logger.info(f"✅ Uploaded to: {s3_output_path}")
                 
                 # Update queue metrics
+                logger.info(f"📈 Updating queue metrics...")
                 self.metrics_manager.complete_job(estimated_duration_seconds)
                 
                 # Clean up local files
+                logger.info(f"🧹 Cleaning up local files...")
                 os.remove(local_audio_path)
                 os.remove(local_output_path)
                 
-                logger.info(f"Job {job_id} completed successfully")
+                logger.info(f"🎉 SUCCESS: Job {job_id} completed successfully!")
                 return True
                 
             except TranscriptionError as e:
-                logger.error(f"Transcription failed for job {job_id}: {e}")
+                logger.error(f"❌ TRANSCRIPTION ERROR for job {job_id}: {e}")
+                logger.error(f"🔧 This may be due to unsupported audio format or corrupted file")
                 # Remove from metrics since it failed
                 self.metrics_manager.remove_job(estimated_duration_seconds)
                 return False
                 
         except Exception as e:
-            logger.error(f"Error processing job: {e}")
+            logger.error(f"💥 UNEXPECTED ERROR processing job {job_id}: {e}")
+            logger.error(f"📋 Error details:", exc_info=True)
             # Try to remove from metrics
             try:
                 estimated_duration = body.get('estimated_duration_seconds', 300)

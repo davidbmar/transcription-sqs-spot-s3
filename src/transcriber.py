@@ -11,6 +11,8 @@ from datetime import datetime
 import tempfile
 import boto3
 import soundfile as sf
+import subprocess
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +80,48 @@ class Transcriber:
             logger.error(error_msg)
             raise ModelLoadError(error_msg)
 
+    def convert_webm_to_wav(self, input_file):
+        """
+        Convert webm file to wav format using ffmpeg
+        
+        Args:
+            input_file: Path to webm file
+            
+        Returns:
+            Path to converted wav file
+        """
+        try:
+            # Create temporary wav file
+            input_path = Path(input_file)
+            wav_file = input_path.with_suffix('.wav')
+            
+            logger.info(f"🎥 FFMPEG CONVERSION: {input_file} → {wav_file}")
+            
+            # Use ffmpeg to convert webm to wav
+            cmd = [
+                'ffmpeg', '-i', input_file,
+                '-acodec', 'pcm_s16le',  # 16-bit PCM
+                '-ar', '16000',          # 16kHz sample rate for Whisper
+                '-ac', '1',              # Mono
+                '-y',                    # Overwrite output file
+                str(wav_file)
+            ]
+            
+            logger.info(f"🔧 FFMPEG COMMAND: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            logger.info(f"✅ FFMPEG SUCCESS: Converted to {wav_file}")
+            logger.info(f"📊 FFMPEG OUTPUT: {result.stderr[-200:] if result.stderr else 'No stderr'}")
+            return str(wav_file)
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"FFmpeg conversion failed: {e.stderr}"
+            logger.error(error_msg)
+            raise AudioProcessingError(error_msg)
+        except Exception as e:
+            error_msg = f"Error converting webm file: {str(e)}"
+            logger.error(error_msg)
+            raise AudioProcessingError(error_msg)
+
     def segment_audio(self, audio_file, output_dir):
         """
         Split audio file into chunks for processing
@@ -92,9 +136,17 @@ class Transcriber:
         try:
             os.makedirs(output_dir, exist_ok=True)
 
+            # Check if we need to convert webm to wav
+            audio_path = audio_file
+            if audio_file.lower().endswith('.webm'):
+                logger.info(f"🎬 WEBM DETECTED: {audio_file}")
+                logger.info(f"🔄 Converting webm to wav format...")
+                audio_path = self.convert_webm_to_wav(audio_file)
+                logger.info(f"✅ WEBM CONVERSION COMPLETE: {audio_path}")
+
             # Load audio file
-            logger.info(f"Loading audio file: {audio_file}")
-            audio_data, sample_rate = sf.read(audio_file)
+            logger.info(f"Loading audio file: {audio_path}")
+            audio_data, sample_rate = sf.read(audio_path)
 
             # Calculate chunk size in samples
             chunk_samples = int(self.chunk_size * sample_rate)
@@ -112,9 +164,20 @@ class Transcriber:
                 chunk_files.append(chunk_file)
 
             logger.info(f"Created {len(chunk_files)} audio chunks")
+            
+            # Clean up converted wav file if we created one
+            if audio_path != audio_file and os.path.exists(audio_path):
+                logger.info(f"Cleaning up converted file: {audio_path}")
+                os.remove(audio_path)
+            
             return chunk_files
 
         except Exception as e:
+            # Clean up converted wav file if we created one
+            if 'audio_path' in locals() and audio_path != audio_file and os.path.exists(audio_path):
+                logger.info(f"Cleaning up converted file after error: {audio_path}")
+                os.remove(audio_path)
+            
             error_msg = f"Error segmenting audio: {str(e)}"
             logger.error(error_msg)
             raise AudioProcessingError(error_msg)

@@ -267,8 +267,91 @@ EOF
 chmod +x scripts/step-041-test-complete-workflow.sh
 echo -e "${GREEN}[OK]${NC} Test script created: scripts/step-041-test-complete-workflow.sh"
 
-# Fix 4: Update setup status
-echo -e "${GREEN}[STEP 4]${NC} Updating setup status..."
+# Fix 4: Ensure ffmpeg is installed on worker instances
+echo -e "${GREEN}[STEP 4]${NC} Adding ffmpeg installation to worker setup..."
+
+# Update the launch script to include ffmpeg installation
+if [ -f "scripts/launch-spot-worker.sh" ]; then
+    # Check if ffmpeg installation is already in the script
+    if ! grep -q "apt-get install.*ffmpeg" scripts/launch-spot-worker.sh; then
+        echo -e "${YELLOW}[INFO]${NC} Adding ffmpeg installation to worker launch script..."
+        
+        # Create a backup if not already exists
+        if [ ! -f "scripts/launch-spot-worker.sh.backup" ]; then
+            cp scripts/launch-spot-worker.sh scripts/launch-spot-worker.sh.backup
+        fi
+        
+        # Insert ffmpeg installation after the apt-get update line
+        sed -i '/apt-get update/a\\n# Install ffmpeg for webm audio support\necho "Installing ffmpeg for audio format support..."\napt-get install -y ffmpeg\necho "FFmpeg installation completed"' scripts/launch-spot-worker.sh
+        
+        echo -e "${GREEN}[OK]${NC} Added ffmpeg installation to worker launch script"
+    else
+        echo -e "${YELLOW}[INFO]${NC} FFmpeg installation already present in launch script"
+    fi
+else
+    echo -e "${YELLOW}[WARNING]${NC} Launch script not found, creating ffmpeg verification script..."
+    
+    # Create a standalone script to install ffmpeg on existing workers
+    cat > scripts/install-ffmpeg-on-workers.sh << 'EOF'
+#!/bin/bash
+
+# Install ffmpeg on existing worker instances
+
+set -e
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Load configuration
+CONFIG_FILE=".env"
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+else
+    echo -e "${RED}[ERROR]${NC} Configuration file not found."
+    exit 1
+fi
+
+echo -e "${GREEN}[INFO]${NC} Installing ffmpeg on all running worker instances..."
+
+# Get running worker instances
+WORKERS=$(aws ec2 describe-instances \
+    --region "$AWS_REGION" \
+    --filters \
+        "Name=tag:Type,Values=whisper-worker" \
+        "Name=instance-state-name,Values=running" \
+    --query "Reservations[*].Instances[*].[InstanceId,PublicIpAddress]" \
+    --output text)
+
+if [ -z "$WORKERS" ]; then
+    echo -e "${YELLOW}[WARNING]${NC} No running worker instances found"
+    exit 0
+fi
+
+# Install ffmpeg on each worker
+echo "$WORKERS" | while IFS=$'\t' read -r instance_id public_ip; do
+    if [ -n "$public_ip" ] && [ "$public_ip" != "None" ]; then
+        echo -e "${GREEN}[INFO]${NC} Installing ffmpeg on instance $instance_id ($public_ip)..."
+        
+        ssh -i transcription-worker-key-dev.pem -o StrictHostKeyChecking=no ubuntu@"$public_ip" \
+            "sudo apt-get update && sudo apt-get install -y ffmpeg && ffmpeg -version | head -1" \
+            || echo -e "${RED}[ERROR]${NC} Failed to install ffmpeg on $instance_id"
+    else
+        echo -e "${YELLOW}[WARNING]${NC} No public IP for instance $instance_id"
+    fi
+done
+
+echo -e "${GREEN}[OK]${NC} FFmpeg installation completed on all workers"
+EOF
+    
+    chmod +x scripts/install-ffmpeg-on-workers.sh
+    echo -e "${GREEN}[OK]${NC} Created ffmpeg installation script: scripts/install-ffmpeg-on-workers.sh"
+fi
+
+# Fix 5: Update setup status
+echo -e "${GREEN}[STEP 5]${NC} Updating setup status..."
 echo "STEP_040_COMPLETE=$(date)" >> .setup-status
 
 echo
@@ -278,6 +361,7 @@ echo "Applied fixes:"
 echo "1. Updated IAM worker policy for metrics bucket access"
 echo "2. Fixed launch script to use correct environment variables"
 echo "3. Created comprehensive integration test script"
+echo "4. Added ffmpeg installation for webm audio support"
 echo
 echo "To test the complete workflow:"
 echo "  ./scripts/step-041-test-complete-workflow.sh"
