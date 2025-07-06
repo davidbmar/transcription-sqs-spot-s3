@@ -42,7 +42,7 @@ apt-get update
 
 # Fix Docker containerd conflict
 apt-get remove -y containerd.io || true
-apt-get install -y docker.io python3-pip awscli git
+apt-get install -y docker.io python3-pip awscli git ffmpeg
 
 # Install NVIDIA drivers and Docker GPU support
 apt-get install -y nvidia-driver-525 nvidia-docker2
