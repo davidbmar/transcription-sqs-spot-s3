@@ -224,12 +224,25 @@ class Transcriber:
                     logger.info(f"Processing chunk {i+1}/{len(chunk_files)}")
 
                     # Transcribe chunk
-                    result = self.model.transcribe(
-                        chunk_file,
-                        batch_size=self.batch_size,
-                        language=language,
-                        vad_options=vad_options
-                    )
+                    try:
+                        # Try with vad_options first (newer WhisperX versions)
+                        result = self.model.transcribe(
+                            chunk_file,
+                            batch_size=self.batch_size,
+                            language=language,
+                            vad_options=vad_options
+                        )
+                    except TypeError as e:
+                        if "vad_options" in str(e):
+                            logger.info("⚠️ VAD options not supported, using basic transcription")
+                            # Fallback for older WhisperX versions
+                            result = self.model.transcribe(
+                                chunk_file,
+                                batch_size=self.batch_size,
+                                language=language
+                            )
+                        else:
+                            raise
 
                     # Align words for precise timestamps
                     result = whisperx.align(
@@ -435,11 +448,25 @@ class Transcriber:
                     logger.info(f"Processing chunk {i+1}/{len(chunk_files)}")
 
                     # Transcribe chunk
-                    result = self.model.transcribe(
-                        chunk_file,
-                        batch_size=self.batch_size,
-                        language=language
-                    )
+                    try:
+                        # Try with vad_options first (newer WhisperX versions)
+                        result = self.model.transcribe(
+                            chunk_file,
+                            batch_size=self.batch_size,
+                            language=language,
+                            vad_options=vad_options
+                        )
+                    except TypeError as e:
+                        if "vad_options" in str(e):
+                            logger.info("⚠️ VAD options not supported, using basic transcription")
+                            # Fallback for older WhisperX versions
+                            result = self.model.transcribe(
+                                chunk_file,
+                                batch_size=self.batch_size,
+                                language=language
+                            )
+                        else:
+                            raise
 
                     # Align words for precise timestamps
                     result = whisperx.align(
