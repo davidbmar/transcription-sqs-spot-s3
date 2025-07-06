@@ -44,9 +44,20 @@ apt-get update
 apt-get remove -y containerd.io || true
 apt-get install -y docker.io python3-pip awscli git ffmpeg
 
-# Install NVIDIA drivers and Docker GPU support
-apt-get install -y nvidia-driver-525 nvidia-docker2
-systemctl restart docker
+# Try to install NVIDIA drivers (fallback to CPU-only if it fails)
+echo "Attempting to install NVIDIA drivers..."
+if apt-get install -y nvidia-driver-525 nvidia-docker2; then
+    echo "NVIDIA drivers installed successfully"
+    systemctl restart docker
+    GPU_MODE="--use-gpu"
+else
+    echo "NVIDIA driver installation failed, continuing with CPU-only mode"
+    # Clean up any partial installations
+    apt-get remove -y nvidia-driver-525 nvidia-docker2 nvidia-dkms-525 || true
+    apt-get autoremove -y || true
+    dpkg --configure -a || true
+    GPU_MODE="--cpu-only"
+fi
 
 # Install Python packages
 pip3 install boto3 torch torchaudio transformers openai-whisper whisperx
@@ -61,7 +72,7 @@ wget -O queue_metrics.py https://raw.githubusercontent.com/davidbmar/transcripti
 wget -O transcriber.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcriber.py
 
 # Start the worker with the downloaded code
-python3 transcription_worker.py --queue-url "$QUEUE_URL" --s3-bucket "$METRICS_BUCKET" --region "$REGION" --model base
+python3 transcription_worker.py --queue-url "$QUEUE_URL" --s3-bucket "$METRICS_BUCKET" --region "$REGION" --model base $GPU_MODE
 EOF
 
 # Create the spot instance request
