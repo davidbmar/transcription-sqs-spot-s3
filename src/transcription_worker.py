@@ -49,7 +49,7 @@ class TranscriptionWorker:
                  s3_bucket: str,
                  region: str = "us-east-1",
                  temp_dir: str = "/tmp",
-                 idle_threshold_minutes: int = 5,
+                 idle_threshold_minutes: int = 60,
                  use_gpu: bool = True,
                  model_name: str = "large-v3"):
         """
@@ -144,9 +144,9 @@ class TranscriptionWorker:
                     self.idle_start = time.time()
                     logger.info("Queue is empty, starting idle timer")
                 elif time.time() - self.idle_start > self.idle_threshold_minutes * 60:
-                    # DISABLED: Idle timeout shutdown temporarily disabled
-                    logger.info(f"Idle for {self.idle_threshold_minutes} minutes, but shutdown is disabled")
-                    # return False
+                    logger.info(f"💤 IDLE SHUTDOWN: Worker idle for {self.idle_threshold_minutes} minutes")
+                    logger.info("🔌 Initiating spot instance shutdown to save costs")
+                    return False
             else:
                 self.idle_start = None  # Reset idle timer
                 
@@ -349,11 +349,13 @@ class TranscriptionWorker:
         logger.info(f"Worker {self.worker_id} shutting down gracefully")
         logger.info(f"Total jobs processed: {self.jobs_processed}")
         
-        # Optional: shutdown the instance if running on spot
-        # DISABLED: Automatic shutdown temporarily disabled
-        # if os.path.exists('/var/lib/cloud/instance/sem/config_scripts_user'):
-        #     logger.info("Detected cloud instance, initiating shutdown")
-        #     subprocess.run(["sudo", "shutdown", "-h", "+1"], check=False)
+        # Shutdown the spot instance to save costs
+        if os.path.exists('/var/lib/cloud/instance/sem/config_scripts_user'):
+            logger.info("🔌 SPOT SHUTDOWN: Detected cloud instance, initiating shutdown in 1 minute")
+            logger.info("💰 This saves GPU costs when no work is available")
+            subprocess.run(["sudo", "shutdown", "-h", "+1"], check=False)
+        else:
+            logger.info("🖥️ Non-cloud environment detected, shutdown skipped")
 
 
 def main():

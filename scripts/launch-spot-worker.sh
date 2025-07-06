@@ -56,15 +56,32 @@ if apt-get install -y nvidia-driver-525 nvidia-docker2; then
     echo "🔄 Restarting Docker service..."
     systemctl restart docker
     
-    # Wait a moment and test NVIDIA
-    sleep 5
+    # Wait for drivers to initialize and test NVIDIA
     echo "🧪 Testing NVIDIA installation..."
-    if nvidia-smi; then
-        echo "✅ NVIDIA GPU detected and accessible"
-        GPU_MODE="--use-gpu"
+    sleep 10
+    
+    # Try nvidia-smi multiple times as it may take time to initialize
+    NVIDIA_ATTEMPTS=0
+    NVIDIA_SUCCESS=false
+    while [ \$NVIDIA_ATTEMPTS -lt 3 ]; do
+        echo "🔍 NVIDIA test attempt \$((NVIDIA_ATTEMPTS + 1))/3..."
+        if nvidia-smi > /dev/null 2>&1; then
+            echo "✅ NVIDIA GPU detected and accessible!"
+            nvidia-smi | head -15
+            GPU_MODE="--use-gpu"
+            NVIDIA_SUCCESS=true
+            break
+        else
+            echo "⏳ NVIDIA not ready yet, waiting..."
+            sleep 10
+            NVIDIA_ATTEMPTS=\$((NVIDIA_ATTEMPTS + 1))
+        fi
+    done
+    
+    if [ "\$NVIDIA_SUCCESS" = true ]; then
         echo "🚀 SELECTED MODE: GPU acceleration enabled"
     else
-        echo "❌ NVIDIA drivers installed but GPU not accessible"
+        echo "❌ NVIDIA drivers installed but GPU not accessible after multiple attempts"
         GPU_MODE="--cpu-only"
         echo "🚀 SELECTED MODE: CPU-only fallback"
     fi
