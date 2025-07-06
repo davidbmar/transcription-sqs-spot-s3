@@ -277,9 +277,11 @@ cat > /tmp/transcription-worker-policy.json << EOF
       ],
       "Resource": [
         "arn:aws:s3:::transcription-metrics-*/*",
+        "arn:aws:s3:::aud-trsn-metrics-*/*",
         "arn:aws:s3:::dbm-cf-2-web/*",
         "arn:aws:s3:::audio-transcription-*/*",
         "arn:aws:s3:::transcription-metrics-*",
+        "arn:aws:s3:::aud-trsn-metrics-*",
         "arn:aws:s3:::dbm-cf-2-web",
         "arn:aws:s3:::audio-transcription-*"
       ]
