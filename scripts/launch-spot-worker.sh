@@ -33,7 +33,7 @@ if [ -z "$QUEUE_URL" ] || [ -z "$S3_BUCKET" ]; then
 fi
 
 # Create user data script
-cat > /tmp/user-data.sh << 'EOF'
+cat > /tmp/user-data.sh << EOF
 #!/bin/bash
 set -e
 
@@ -72,7 +72,7 @@ wget -O queue_metrics.py https://raw.githubusercontent.com/davidbmar/transcripti
 wget -O transcriber.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcriber.py
 
 # Start the worker with the downloaded code
-python3 transcription_worker.py --queue-url "$QUEUE_URL" --s3-bucket "$METRICS_BUCKET" --region "$REGION" --model base $GPU_MODE
+python3 transcription_worker.py --queue-url "$QUEUE_URL" --s3-bucket "$METRICS_BUCKET" --region "$REGION" --model base \$GPU_MODE
 EOF
 
 # Create the spot instance request
