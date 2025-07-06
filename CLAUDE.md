@@ -6,6 +6,21 @@ Critical instructions for Claude AI when working on this codebase.
 
 **NEVER hardcode configuration values.** All config MUST come from `.env` file.
 
+## System Architecture Overview
+
+```
+Audio Files (S3) → SQS Queue → EC2 Spot Workers (GPU) → Transcripts (S3)
+                      ↓
+                   DLQ (failed jobs)
+```
+
+### Core Components:
+- **SQS Queue**: Manages transcription jobs with visibility timeout and retry logic
+- **Dead Letter Queue**: Handles failed jobs after max retries (default: 3)
+- **EC2 Spot Instances**: GPU-enabled workers (g4dn.xlarge) running WhisperX
+- **S3 Buckets**: Store audio inputs, transcripts, and lightweight metrics
+- **Auto-scaling**: Based on queue depth and pending work minutes
+
 ## Configuration Pattern
 
 ### Bash Scripts:
@@ -35,12 +50,50 @@ CONFIG = load_config()
 
 ## Required Script Execution Order
 
+### Initial Setup (First Time Only):
 1. `step-000-setup-configuration.sh` + `step-001-validate-configuration.sh`
 2. `step-010-setup-iam-permissions.sh` + `step-011-validate-iam-permissions.sh`
 3. `step-020-create-sqs-resources.sh` + `step-021-validate-sqs-resources.sh`
 4. `step-025-setup-ec2-configuration.sh` + `step-026-validate-ec2-configuration.sh`
-5. `step-030-launch-spot-worker.sh` (when ready)
-6. `step-999-cleanup-resources.sh` (cleanup)
+
+### Worker Launch (Repeatable):
+5. `step-030-launch-spot-worker.sh` - Launch GPU spot instances
+   - Can be run multiple times to scale up workers
+   - Workers auto-terminate when idle (default: 300s)
+   - Check `.setup-status` for worker instance IDs
+
+### Testing & Cleanup:
+6. `step-041-test-complete-workflow.sh` - End-to-end test
+7. `step-999-terminate-workers-or-selective-cleanup.sh` - Selective cleanup (workers only or all)
+8. `step-999-destroy-all-resources-complete-teardown.sh` - Complete system teardown
+
+## Launching Spot Instances
+
+To launch transcription workers:
+```bash
+# Ensure all setup steps (000-026) are complete
+./step-030-launch-spot-worker.sh
+
+# Launch multiple workers for scaling
+./step-030-launch-spot-worker.sh  # Run multiple times
+```
+
+### Worker Behavior:
+- Auto-starts transcription service on boot
+- Polls SQS queue for jobs
+- Downloads audio from S3
+- Transcribes using WhisperX (GPU-accelerated)
+- Uploads results to S3
+- Auto-terminates when idle
+
+### Monitoring Workers:
+```bash
+# Check running instances
+aws ec2 describe-instances --filters "Name=tag:Name,Values=transcription-worker" "Name=instance-state-name,Values=running"
+
+# View worker logs (SSH into instance)
+sudo journalctl -u transcription-worker -f
+```
 
 ## Step-XXX Format Requirements
 
@@ -69,16 +122,40 @@ if not queue_url:
     raise ValueError("QUEUE_URL not configured. Run step-000-setup-configuration.sh")
 ```
 
-## Architecture
-
-- **SQS**: Job queuing with dead letter handling
-- **S3**: Audio storage + lightweight metrics
-- **EC2 Spot**: GPU-accelerated transcription workers  
-- **IAM**: Least-privilege roles and policies
-
 ## Key Files
 
+### Configuration:
 - `.env` - All configuration (never commit)
 - `.env.template` - Example values (commit)
 - `.setup-status` - Track setup progress
 - `CLAUDE.md` - This file (AI instructions)
+
+### Worker Implementation:
+- `transcription_worker.py` - Main worker loop
+- `transcriber.py` - WhisperX integration
+- `queue_metrics.py` - S3-based metrics
+- `user-data.sh` - EC2 startup script
+
+## Production Deployment Checklist
+
+1. **Configuration**: Run `step-001-validate-configuration.sh`
+2. **IAM Permissions**: Verify roles and policies are created
+3. **Resources**: Ensure SQS queues and S3 buckets exist
+4. **Network**: Validate VPC, subnet, and security groups
+5. **Launch Workers**: Run `step-030-launch-spot-worker.sh`
+6. **Test**: Submit test job with `step-041-test-complete-workflow.sh`
+7. **Monitor**: Check CloudWatch logs and S3 metrics
+
+## Troubleshooting
+
+### Worker Not Processing Jobs:
+1. Check SQS queue has messages
+2. Verify IAM permissions
+3. Review worker logs: `sudo journalctl -u transcription-worker`
+4. Ensure GPU is available: `nvidia-smi`
+
+### High Costs:
+1. Check idle timeout configuration
+2. Review spot instance pricing
+3. Monitor number of running instances
+4. Consider smaller instance types for light workloads
