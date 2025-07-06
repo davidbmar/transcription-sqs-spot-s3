@@ -20,10 +20,23 @@ from urllib.parse import urlparse
 from queue_metrics import QueueMetricsManager
 from transcriber import Transcriber, TranscriptionError
 
-# Setup logging
+# Setup logging with both file and console output
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+# File handler for persistent logs
+file_handler = logging.FileHandler('/tmp/transcription_worker.log')
+file_handler.setFormatter(log_formatter)
+file_handler.setLevel(logging.DEBUG)
+
+# Console handler for immediate output
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.INFO)
+
+# Configure root logger
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.DEBUG,
+    handlers=[file_handler, console_handler]
 )
 logger = logging.getLogger(__name__)
 
@@ -272,10 +285,17 @@ class TranscriptionWorker:
     def run(self):
         """Main worker loop"""
         logger.info(f"Transcription worker {self.worker_id} starting...")
+        logger.info(f"Queue URL: {self.queue_url}")
+        logger.info(f"S3 Bucket: {self.s3_bucket}")
+        logger.info(f"Region: {self.region}")
+        logger.info(f"Model: {self.model_name}")
+        logger.info(f"GPU enabled: {self.use_gpu}")
+        logger.info("Worker initialized successfully, beginning message polling...")
         
         while self.should_continue_running():
             try:
                 # Receive messages from SQS
+                logger.debug("Polling SQS for messages...")
                 response = self.sqs.receive_message(
                     QueueUrl=self.queue_url,
                     AttributeNames=['All'],
@@ -286,8 +306,10 @@ class TranscriptionWorker:
                 )
                 
                 if 'Messages' in response:
+                    logger.info(f"Received {len(response['Messages'])} message(s) from queue")
                     for message in response['Messages']:
                         # Process the job
+                        logger.info(f"Processing message: {message.get('MessageId', 'unknown')}")
                         success = self.process_job(message)
                         
                         if success:
@@ -302,7 +324,7 @@ class TranscriptionWorker:
                             logger.error("Job processing failed, leaving message in queue for retry")
                             
                 else:
-                    logger.debug("No messages in queue")
+                    logger.debug("No messages in queue, continuing to poll...")
                     
             except Exception as e:
                 logger.error(f"Error in worker loop: {e}")
