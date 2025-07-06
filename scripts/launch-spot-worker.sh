@@ -45,19 +45,43 @@ apt-get remove -y containerd.io || true
 apt-get install -y docker.io python3-pip awscli git ffmpeg
 
 # Try to install NVIDIA drivers (fallback to CPU-only if it fails)
+echo "=========================================="
+echo "🔧 NVIDIA DRIVER INSTALLATION"
+echo "=========================================="
 echo "Attempting to install NVIDIA drivers..."
+echo "Timestamp: \$(date)"
+
 if apt-get install -y nvidia-driver-525 nvidia-docker2; then
-    echo "NVIDIA drivers installed successfully"
+    echo "✅ NVIDIA drivers installed successfully"
+    echo "🔄 Restarting Docker service..."
     systemctl restart docker
-    GPU_MODE="--use-gpu"
+    
+    # Wait a moment and test NVIDIA
+    sleep 5
+    echo "🧪 Testing NVIDIA installation..."
+    if nvidia-smi; then
+        echo "✅ NVIDIA GPU detected and accessible"
+        GPU_MODE="--use-gpu"
+        echo "🚀 SELECTED MODE: GPU acceleration enabled"
+    else
+        echo "❌ NVIDIA drivers installed but GPU not accessible"
+        GPU_MODE="--cpu-only"
+        echo "🚀 SELECTED MODE: CPU-only fallback"
+    fi
 else
-    echo "NVIDIA driver installation failed, continuing with CPU-only mode"
+    echo "❌ NVIDIA driver installation failed, continuing with CPU-only mode"
+    echo "🧹 Cleaning up partial installations..."
     # Clean up any partial installations
     apt-get remove -y nvidia-driver-525 nvidia-docker2 nvidia-dkms-525 || true
     apt-get autoremove -y || true
     dpkg --configure -a || true
     GPU_MODE="--cpu-only"
+    echo "🚀 SELECTED MODE: CPU-only (driver installation failed)"
 fi
+
+echo "=========================================="
+echo "🔧 FINAL GPU MODE: \$GPU_MODE"
+echo "=========================================="
 
 # Install Python packages
 pip3 install boto3 torch torchaudio transformers openai-whisper whisperx
@@ -72,6 +96,19 @@ wget -O queue_metrics.py https://raw.githubusercontent.com/davidbmar/transcripti
 wget -O transcriber.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcriber.py
 
 # Start the worker with the downloaded code
+echo "=========================================="
+echo "🚀 STARTING TRANSCRIPTION WORKER"
+echo "=========================================="
+echo "Configuration:"
+echo "  - Queue URL: $QUEUE_URL"
+echo "  - Metrics Bucket: $METRICS_BUCKET"
+echo "  - Region: $REGION"
+echo "  - Model: base"
+echo "  - GPU Mode: \$GPU_MODE"
+echo "  - Working Directory: \$(pwd)"
+echo "  - Timestamp: \$(date)"
+echo "=========================================="
+
 python3 transcription_worker.py --queue-url "$QUEUE_URL" --s3-bucket "$METRICS_BUCKET" --region "$REGION" --model base \$GPU_MODE
 EOF
 

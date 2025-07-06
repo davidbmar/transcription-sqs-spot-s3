@@ -47,7 +47,19 @@ class Transcriber:
             vad_offset: Voice activity detection offset threshold (0-1)
         """
         self.model_name = model_name
-        self.device = "cuda" if torch.cuda.is_available() and device == "cuda" else "cpu"
+        # Determine actual device to use with detailed logging
+        cuda_available = torch.cuda.is_available()
+        requested_device = device
+        self.device = "cuda" if cuda_available and device == "cuda" else "cpu"
+        
+        logger.info(f"🔧 DEVICE DETECTION:")
+        logger.info(f"  - Requested device: {requested_device}")
+        logger.info(f"  - CUDA available: {cuda_available}")
+        logger.info(f"  - Selected device: {self.device}")
+        if cuda_available:
+            logger.info(f"  - CUDA devices: {torch.cuda.device_count()}")
+            logger.info(f"  - Current CUDA device: {torch.cuda.current_device()}")
+        
         self.chunk_size = chunk_size
         self.s3_bucket = s3_bucket
         self.s3 = boto3.client('s3', region_name=region) if s3_bucket else None
@@ -56,7 +68,7 @@ class Transcriber:
         self.vad_offset = vad_offset
         self.model = None
 
-        logger.info(f"Initializing transcriber with model={model_name}, device={self.device}")
+        logger.info(f"🔧 TRANSCRIBER INIT: model={model_name}, device={self.device}, chunk_size={chunk_size}s")
 
     def load_model(self):
         """Load the WhisperX model"""
@@ -64,20 +76,24 @@ class Transcriber:
             return
 
         try:
-            logger.info(f"Loading WhisperX model {self.model_name} on {self.device}")
+            logger.info(f"🔧 MODEL LOADING: Starting WhisperX model {self.model_name} on {self.device}")
+            
             # Use float32 for CPU to avoid float16 computation issues
             compute_type = "float32" if self.device == "cpu" else "float16"
-            logger.info(f"Using compute_type: {compute_type}")
+            logger.info(f"🔧 COMPUTE TYPE: Selected {compute_type} for device {self.device}")
+            logger.info(f"🔧 TORCH CUDA: Available={torch.cuda.is_available()}, Device Count={torch.cuda.device_count() if torch.cuda.is_available() else 0}")
+            
             self.model = whisperx.load_model(self.model_name, self.device, compute_type=compute_type)
+            logger.info(f"✅ MODEL LOADED: WhisperX {self.model_name} successfully loaded")
 
             # Load alignment model for improved word-level timestamps
-            logger.info("Loading alignment model")
+            logger.info("🔧 ALIGNMENT MODEL: Loading alignment model for English")
             self.alignment_model, self.metadata = whisperx.load_align_model(
                 language_code="en",
                 device=self.device
             )
 
-            logger.info("Models loaded successfully")
+            logger.info("✅ ALL MODELS LOADED: WhisperX and alignment models ready for transcription")
         except Exception as e:
             error_msg = f"Failed to load WhisperX model: {str(e)}"
             logger.error(error_msg)
