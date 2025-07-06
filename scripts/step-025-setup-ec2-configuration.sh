@@ -175,3 +175,7 @@ echo "1. You can now launch spot instances using ./scripts/launch-spot-worker.sh
 echo "2. SSH into instances using: ssh -i ${KEY_NAME}.pem ubuntu@<instance-ip>"
 echo
 echo -e "${GREEN}[INFO]${NC} EC2 configuration saved to $CONFIG_FILE"
+
+# Update setup status
+echo "STEP_025_COMPLETE=$(date)" >> .setup-status
+echo -e "${GREEN}[INFO]${NC} Step 025 marked as complete"

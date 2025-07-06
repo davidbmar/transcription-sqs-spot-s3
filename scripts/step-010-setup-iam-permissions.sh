@@ -331,11 +331,13 @@ cat > /tmp/transcription-worker-policy.json << EOF
       "Resource": [
         "arn:aws:s3:::transcription-metrics-*/*",
         "arn:aws:s3:::aud-trsn-metrics-*/*",
-        "arn:aws:s3:::dbm-cf-2-web/*",
+        "arn:aws:s3:::dbm-aud-tr-*/*",
+        "arn:aws:s3:::${AUDIO_BUCKET}/*",
         "arn:aws:s3:::audio-transcription-*/*",
         "arn:aws:s3:::transcription-metrics-*",
         "arn:aws:s3:::aud-trsn-metrics-*",
-        "arn:aws:s3:::dbm-cf-2-web",
+        "arn:aws:s3:::dbm-aud-tr-*",
+        "arn:aws:s3:::${AUDIO_BUCKET}",
         "arn:aws:s3:::audio-transcription-*"
       ]
     },
@@ -348,7 +350,12 @@ cat > /tmp/transcription-worker-policy.json << EOF
         "sqs:GetQueueAttributes",
         "sqs:ChangeMessageVisibility"
       ],
-      "Resource": "arn:aws:sqs:*:$ACCOUNT_ID:*"
+      "Resource": [
+        "arn:aws:sqs:*:$ACCOUNT_ID:aud-trsn-*",
+        "arn:aws:sqs:*:$ACCOUNT_ID:dbm-aud-tr-*",
+        "arn:aws:sqs:*:$ACCOUNT_ID:transcription-*",
+        "arn:aws:sqs:*:$ACCOUNT_ID:audio-transcription-*"
+      ]
     },
     {
       "Sid": "CloudWatchLogs",
