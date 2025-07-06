@@ -200,14 +200,33 @@ fi
 # Step 3: Delete S3 buckets
 print_header "Deleting S3 Buckets"
 
-# Delete metrics bucket (must be empty first)
+# Delete metrics bucket (must be empty first, including all versions)
 if [ -n "$METRICS_BUCKET" ]; then
     if aws s3 ls "s3://$METRICS_BUCKET" 2>/dev/null; then
         print_status "Emptying bucket: $METRICS_BUCKET"
+        
+        # Delete all objects
         aws s3 rm "s3://$METRICS_BUCKET" --recursive || print_warning "Failed to empty bucket"
         
+        # Check if versioning is enabled and delete all versions
+        print_status "Checking for versioned objects in $METRICS_BUCKET"
+        VERSIONS=$(aws s3api list-object-versions \
+            --bucket "$METRICS_BUCKET" \
+            --output json \
+            --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}, DeleteMarkers: DeleteMarkers[].{Key:Key,VersionId:VersionId}}' \
+            2>/dev/null || echo "{}")
+            
+        if [ "$VERSIONS" != "{}" ] && [ -n "$VERSIONS" ]; then
+            print_status "Deleting all object versions and delete markers"
+            echo "$VERSIONS" | aws s3api delete-objects \
+                --bucket "$METRICS_BUCKET" \
+                --delete "$(echo "$VERSIONS" | jq -c '{Objects: (.Objects + .DeleteMarkers) | map(select(. != null))}')" \
+                2>/dev/null || print_warning "Failed to delete some versions"
+        fi
+        
+        # Now delete the bucket
         print_status "Deleting bucket: $METRICS_BUCKET"
-        aws s3 rb "s3://$METRICS_BUCKET" || print_warning "Failed to delete bucket"
+        aws s3 rb "s3://$METRICS_BUCKET" --force || print_warning "Failed to delete bucket"
     else
         print_status "Bucket $METRICS_BUCKET not found or already deleted"
     fi
