@@ -100,8 +100,25 @@ while IFS=$'\t' read -r INSTANCE_ID STATE PUBLIC_IP LAUNCH_TIME; do
             fi
             
         elif [[ "$CLOUD_INIT_STATUS" == *"running"* ]]; then
-            echo -e "${YELLOW}[WARNING]${NC} Cloud-init still running (setup in progress)"
-            echo -e "${YELLOW}[INFO]${NC} Wait a few more minutes and run this check again"
+            echo -e "${YELLOW}[WARNING]${NC} Cloud-init still running, but checking if worker is operational..."
+            
+            # Check if transcription worker is running despite cloud-init status
+            WORKER_PROCESSES=$(ssh -o StrictHostKeyChecking=no -i "${KEY_NAME}.pem" ubuntu@"$PUBLIC_IP" 'ps aux | grep transcription_worker | grep -v grep | wc -l' 2>/dev/null || echo "0")
+            
+            if [ "$WORKER_PROCESSES" -gt 0 ]; then
+                echo -e "${GREEN}[OK]${NC} ✅ Transcription worker is running despite cloud-init status!"
+                echo -e "${GREEN}[INFO]${NC} Worker is operational and processing jobs"
+                
+                # Check recent worker activity
+                echo -e "${GREEN}[STEP 5]${NC} Checking recent worker activity..."
+                RECENT_ACTIVITY=$(ssh -o StrictHostKeyChecking=no -i "${KEY_NAME}.pem" ubuntu@"$PUBLIC_IP" 'sudo tail -5 /var/log/cloud-init-output.log | grep -E "(SUCCESS|processing|Transcription worker|Queue is empty)" | tail -2' 2>/dev/null || echo "No recent activity")
+                echo "Recent activity:"
+                echo "$RECENT_ACTIVITY"
+                
+            else
+                echo -e "${YELLOW}[INFO]${NC} Worker not started yet - cloud-init still setting up"
+                echo -e "${YELLOW}[INFO]${NC} Wait a few more minutes and run this check again"
+            fi
             
         else
             echo -e "${RED}[ERROR]${NC} Cloud-init failed or encountered errors"
