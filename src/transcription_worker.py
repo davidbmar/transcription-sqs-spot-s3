@@ -18,6 +18,13 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional
 from urllib.parse import urlparse
 from queue_metrics import QueueMetricsManager
+# Import GPU-optimized transcriber if available
+try:
+    from transcriber_gpu_optimized import GPUOptimizedTranscriber
+    GPU_OPTIMIZED_AVAILABLE = True
+except ImportError:
+    GPU_OPTIMIZED_AVAILABLE = False
+    
 from transcriber import Transcriber, TranscriptionError
 
 # Setup logging with both file and console output
@@ -83,15 +90,29 @@ class TranscriptionWorker:
         # Initialize components
         self.metrics_manager = QueueMetricsManager(s3_bucket, region=region)
         
-        # Initialize transcriber
+        # Initialize transcriber - use GPU-optimized version if available and using GPU
         device = "cuda" if use_gpu else "cpu"
-        self.transcriber = Transcriber(
-            model_name=model_name,
-            device=device,
-            chunk_size=30,
-            s3_bucket=s3_bucket,
-            region=region
-        )
+        
+        if use_gpu and GPU_OPTIMIZED_AVAILABLE:
+            logger.info("🚀 Using GPU-OPTIMIZED transcriber for maximum performance")
+            self.transcriber = GPUOptimizedTranscriber(
+                model_name=model_name,
+                device=device,
+                chunk_size=30,
+                s3_bucket=s3_bucket,
+                region=region,
+                batch_size=64,  # Optimal for GPU
+                num_workers=2   # Parallel preprocessing
+            )
+        else:
+            logger.info("Using standard transcriber")
+            self.transcriber = Transcriber(
+                model_name=model_name,
+                device=device,
+                chunk_size=30,
+                s3_bucket=s3_bucket,
+                region=region
+            )
         
         # Ensure temp directory exists
         os.makedirs(temp_dir, exist_ok=True)

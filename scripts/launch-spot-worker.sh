@@ -104,12 +104,13 @@ fi
 mkdir -p /opt/transcription-worker
 cd /opt/transcription-worker
 
-# Download transcription worker code (PROVEN WORKING)
-echo "📥 Downloading transcription worker code..." | tee -a /var/log/gpu-test.log
-wget -O transcription_worker.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcription_worker.py
+# Download transcription worker code (ENHANCED WITH PROGRESS LOGGING)
+echo "📥 Downloading enhanced transcription worker code..." | tee -a /var/log/gpu-test.log
+wget -O transcription_worker.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcription_worker_enhanced.py
 wget -O queue_metrics.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/queue_metrics.py
 wget -O transcriber.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcriber.py
 wget -O transcriber_gpu_optimized.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcriber_gpu_optimized.py
+wget -O progress_logger.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/progress_logger.py
 
 # Start the worker (PROVEN WORKING COMMAND)
 echo "=========================================="  | tee -a /var/log/gpu-test.log
@@ -126,7 +127,7 @@ echo "  - Working Directory: $(pwd)" | tee -a /var/log/gpu-test.log
 echo "  - Timestamp: $(date)" | tee -a /var/log/gpu-test.log
 echo "==========================================" | tee -a /var/log/gpu-test.log
 
-# Start worker with proven working arguments
+# Start enhanced worker with progress logging
 # AUTO-SHUTDOWN: Worker will shutdown after 60 minutes of no queue activity
 nohup python3 transcription_worker.py \
     --queue-url "$QUEUE_URL" \
@@ -136,7 +137,8 @@ nohup python3 transcription_worker.py \
     --idle-timeout 60 \
     $GPU_MODE > /var/log/transcription-worker.log 2>&1 &
 
-echo "🎉 GPU Transcription Worker started successfully!" | tee -a /var/log/gpu-test.log
+echo "🎉 Enhanced GPU Transcription Worker with S3 progress logging started!" | tee -a /var/log/gpu-test.log
+echo "📊 Real-time progress will be available in S3: s3://$METRICS_BUCKET/progress/" | tee -a /var/log/gpu-test.log
 EOF
 
 # Create the spot instance request (PROVEN WORKING CONFIGURATION)
