@@ -109,6 +109,7 @@ echo "📥 Downloading transcription worker code..." | tee -a /var/log/gpu-test.
 wget -O transcription_worker.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcription_worker.py
 wget -O queue_metrics.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/queue_metrics.py
 wget -O transcriber.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcriber.py
+wget -O transcriber_gpu_optimized.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcriber_gpu_optimized.py
 
 # Start the worker (PROVEN WORKING COMMAND)
 echo "=========================================="  | tee -a /var/log/gpu-test.log
@@ -118,7 +119,8 @@ echo "Configuration:" | tee -a /var/log/gpu-test.log
 echo "  - Queue URL: $QUEUE_URL" | tee -a /var/log/gpu-test.log
 echo "  - Metrics Bucket: $METRICS_BUCKET" | tee -a /var/log/gpu-test.log
 echo "  - Region: $REGION" | tee -a /var/log/gpu-test.log
-echo "  - Model: base" | tee -a /var/log/gpu-test.log
+echo "  - Model: large-v3" | tee -a /var/log/gpu-test.log
+echo "  - Batch Size: 64 (GPU optimized)" | tee -a /var/log/gpu-test.log
 echo "  - GPU Mode: $GPU_MODE" | tee -a /var/log/gpu-test.log
 echo "  - Working Directory: $(pwd)" | tee -a /var/log/gpu-test.log
 echo "  - Timestamp: $(date)" | tee -a /var/log/gpu-test.log
@@ -130,7 +132,7 @@ nohup python3 transcription_worker.py \
     --queue-url "$QUEUE_URL" \
     --s3-bucket "$METRICS_BUCKET" \
     --region "$REGION" \
-    --model base \
+    --model large-v3 \
     --idle-timeout 60 \
     $GPU_MODE > /var/log/transcription-worker.log 2>&1 &
 
