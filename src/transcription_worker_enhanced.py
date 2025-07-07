@@ -118,6 +118,7 @@ class EnhancedTranscriptionWorker:
             # Initialize progress logger
             progress = ProgressLogger(self.s3_bucket, job_id, self.region)
             
+            logger.info(f"JOB_START job_id={job_id} worker_id={self.worker_id} input_path={s3_input_path}")
             logger.info(f"🎬 STARTING JOB {job_id}")
             progress.update("STARTED", f"Job {job_id} started processing", 0)
             

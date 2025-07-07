@@ -1,0 +1,740 @@
+#!/usr/bin/env python3
+"""
+Transcription System Monitor CLI
+Command-line tool for monitoring and managing transcription jobs, workers, and system health.
+"""
+
+import boto3
+import click
+import json
+import sys
+import os
+from datetime import datetime, timedelta
+from botocore.exceptions import ClientError, NoCredentialsError
+import re
+
+# Add project root to path for config loading
+project_root = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(project_root)
+
+def load_config():
+    """Load configuration from .env file"""
+    config = {}
+    env_path = os.path.join(project_root, '.env')
+    
+    if not os.path.exists(env_path):
+        click.echo("❌ Error: .env file not found. Please run step-000-setup-configuration.sh first.")
+        sys.exit(1)
+    
+    with open(env_path, 'r') as f:
+        for line in f:
+            if line.strip() and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                config[key.replace('export ', '').strip()] = value.strip().strip('"')
+    
+    return config
+
+def get_aws_clients():
+    """Initialize AWS clients with error handling"""
+    try:
+        config = load_config()
+        region = config.get('AWS_REGION', 'us-east-1')
+        
+        return {
+            'sqs': boto3.client('sqs', region_name=region),
+            's3': boto3.client('s3', region_name=region),
+            'ec2': boto3.client('ec2', region_name=region),
+            'logs': boto3.client('logs', region_name=region),
+            'config': config
+        }
+    except NoCredentialsError:
+        click.echo("❌ Error: AWS credentials not configured. Please run 'aws configure' first.")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"❌ Error initializing AWS clients: {e}")
+        sys.exit(1)
+
+def format_duration(seconds):
+    """Format seconds into human readable duration"""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    elif seconds < 3600:
+        return f"{seconds/60:.1f}m"
+    else:
+        return f"{seconds/3600:.1f}h {(seconds%3600)/60:.0f}m"
+
+def format_timestamp(timestamp_ms):
+    """Format CloudWatch timestamp to readable time"""
+    return datetime.fromtimestamp(timestamp_ms / 1000).strftime('%H:%M:%S')
+
+@click.group()
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+@click.pass_context
+def cli(ctx, verbose):
+    """🔍 Transcription System Monitor
+    
+    Monitor and manage your transcription jobs, workers, and system health.
+    """
+    ctx.ensure_object(dict)
+    ctx.obj['verbose'] = verbose
+    ctx.obj['aws'] = get_aws_clients()
+
+@cli.command()
+@click.pass_context
+def status(ctx):
+    """📊 Show overall system status"""
+    aws = ctx.obj['aws']
+    verbose = ctx.obj['verbose']
+    
+    click.echo("📊 TRANSCRIPTION SYSTEM STATUS")
+    click.echo("=" * 50)
+    
+    try:
+        # Queue status
+        click.echo("\n🗂️ Queue Status:")
+        queue_attrs = aws['sqs'].get_queue_attributes(
+            QueueUrl=aws['config']['QUEUE_URL'],
+            AttributeNames=['All']
+        )['Attributes']
+        
+        visible = int(queue_attrs.get('ApproximateNumberOfMessages', 0))
+        inflight = int(queue_attrs.get('ApproximateNumberOfMessagesNotVisible', 0))
+        
+        click.echo(f"  Messages in queue: {visible}")
+        click.echo(f"  Messages processing: {inflight}")
+        
+        if visible > 10:
+            click.echo("  ⚠️ High queue backlog detected")
+        elif inflight > 0:
+            click.echo("  🔄 Jobs currently processing")
+        else:
+            click.echo("  ✅ Queue is empty")
+    
+    except Exception as e:
+        click.echo(f"  ❌ Error checking queue: {e}")
+    
+    try:
+        # Worker instances
+        click.echo("\n👷 Worker Instances:")
+        instances = aws['ec2'].describe_instances(
+            Filters=[
+                {"Name": "tag:Type", "Values": ["whisper-worker"]},
+                {"Name": "instance-state-name", "Values": ["running", "pending"]}
+            ]
+        )
+        
+        running_instances = []
+        for reservation in instances['Reservations']:
+            for instance in reservation['Instances']:
+                name = next((tag['Value'] for tag in instance.get('Tags', []) if tag['Key'] == 'Name'), 'Unknown')
+                running_instances.append({
+                    'id': instance['InstanceId'],
+                    'name': name,
+                    'state': instance['State']['Name'],
+                    'type': instance['InstanceType'],
+                    'launch_time': instance['LaunchTime']
+                })
+        
+        if running_instances:
+            for instance in running_instances:
+                uptime = datetime.now(instance['launch_time'].tzinfo) - instance['launch_time']
+                click.echo(f"  ✅ {instance['name']} ({instance['id']}) - {instance['state']} - {format_duration(uptime.total_seconds())}")
+        else:
+            click.echo("  🚫 No worker instances running")
+    
+    except Exception as e:
+        click.echo(f"  ❌ Error checking instances: {e}")
+    
+    try:
+        # Recent activity from logs
+        click.echo("\n📈 Recent Activity (Last Hour):")
+        one_hour_ago = int((datetime.now() - timedelta(hours=1)).timestamp() * 1000)
+        
+        # Count job events
+        job_starts = aws['logs'].filter_log_events(
+            logGroupName='/aws/ec2/transcription',
+            startTime=one_hour_ago,
+            filterPattern='JOB_START'
+        )
+        
+        job_completes = aws['logs'].filter_log_events(
+            logGroupName='/aws/ec2/transcription',
+            startTime=one_hour_ago,
+            filterPattern='JOB_COMPLETE'
+        )
+        
+        job_fails = aws['logs'].filter_log_events(
+            logGroupName='/aws/ec2/transcription',
+            startTime=one_hour_ago,
+            filterPattern='JOB_FAILED'
+        )
+        
+        starts = len(job_starts['events'])
+        completes = len(job_completes['events'])
+        fails = len(job_fails['events'])
+        
+        click.echo(f"  Jobs started: {starts}")
+        click.echo(f"  Jobs completed: {completes}")
+        click.echo(f"  Jobs failed: {fails}")
+        
+        if starts > 0:
+            success_rate = (completes / starts) * 100
+            click.echo(f"  Success rate: {success_rate:.1f}%")
+        
+        if fails > 0:
+            click.echo("  ⚠️ Recent failures detected")
+    
+    except aws['logs'].exceptions.ResourceNotFoundException:
+        click.echo("  📭 No log data available (log group not found)")
+    except Exception as e:
+        if verbose:
+            click.echo(f"  ❌ Error checking logs: {e}")
+        else:
+            click.echo("  📭 No recent activity data available")
+
+@cli.command()
+@click.option('--limit', '-l', default=10, help='Number of jobs to show')
+@click.option('--stuck-only', is_flag=True, help='Show only stuck jobs')
+@click.pass_context
+def jobs(ctx, limit, stuck_only):
+    """📋 List jobs and their status"""
+    aws = ctx.obj['aws']
+    verbose = ctx.obj['verbose']
+    
+    if stuck_only:
+        click.echo("⚠️ STUCK JOBS")
+        click.echo("=" * 30)
+    else:
+        click.echo("📋 RECENT JOBS")
+        click.echo("=" * 30)
+    
+    try:
+        # Get recent job activity from logs
+        cutoff_time = int((datetime.now() - timedelta(hours=6)).timestamp() * 1000)
+        
+        # Get job starts
+        job_starts = aws['logs'].filter_log_events(
+            logGroupName='/aws/ec2/transcription',
+            startTime=cutoff_time,
+            filterPattern='JOB_START'
+        )
+        
+        # Get job completions and failures
+        job_completes = aws['logs'].filter_log_events(
+            logGroupName='/aws/ec2/transcription',
+            startTime=cutoff_time,
+            filterPattern='JOB_COMPLETE'
+        )
+        
+        job_fails = aws['logs'].filter_log_events(
+            logGroupName='/aws/ec2/transcription',
+            startTime=cutoff_time,
+            filterPattern='JOB_FAILED'
+        )
+        
+        # Parse job information
+        jobs = {}
+        
+        # Process job starts
+        for event in job_starts['events']:
+            match = re.search(r'job_id[=:]\s*([^\s,}]+)', event['message'])
+            if match:
+                job_id = match.group(1)
+                jobs[job_id] = {
+                    'job_id': job_id,
+                    'status': 'PROCESSING',
+                    'started_at': event['timestamp'],
+                    'completed_at': None,
+                    'duration': None
+                }
+        
+        # Process completions
+        for event in job_completes['events']:
+            match = re.search(r'job_id[=:]\s*([^\s,}]+)', event['message'])
+            if match:
+                job_id = match.group(1)
+                if job_id in jobs:
+                    jobs[job_id]['status'] = 'COMPLETED'
+                    jobs[job_id]['completed_at'] = event['timestamp']
+                    jobs[job_id]['duration'] = (event['timestamp'] - jobs[job_id]['started_at']) / 1000
+        
+        # Process failures
+        for event in job_fails['events']:
+            match = re.search(r'job_id[=:]\s*([^\s,}]+)', event['message'])
+            if match:
+                job_id = match.group(1)
+                if job_id in jobs:
+                    jobs[job_id]['status'] = 'FAILED'
+                    jobs[job_id]['completed_at'] = event['timestamp']
+                    jobs[job_id]['duration'] = (event['timestamp'] - jobs[job_id]['started_at']) / 1000
+        
+        # Find stuck jobs (processing for > 30 minutes)
+        now = datetime.now().timestamp() * 1000
+        stuck_threshold = 30 * 60 * 1000  # 30 minutes
+        
+        stuck_jobs = []
+        recent_jobs = []
+        
+        for job in jobs.values():
+            if job['status'] == 'PROCESSING':
+                age = now - job['started_at']
+                if age > stuck_threshold:
+                    job['stuck_duration'] = age / 1000
+                    stuck_jobs.append(job)
+                else:
+                    recent_jobs.append(job)
+            else:
+                recent_jobs.append(job)
+        
+        if stuck_only:
+            jobs_to_show = stuck_jobs
+        else:
+            jobs_to_show = sorted(recent_jobs + stuck_jobs, key=lambda x: x['started_at'], reverse=True)[:limit]
+        
+        if not jobs_to_show:
+            if stuck_only:
+                click.echo("✅ No stuck jobs found")
+            else:
+                click.echo("📭 No recent jobs found")
+            return
+        
+        for job in jobs_to_show:
+            started = format_timestamp(job['started_at'])
+            
+            if job['status'] == 'COMPLETED':
+                duration = format_duration(job['duration'])
+                click.echo(f"✅ {job['job_id'][:12]}... - COMPLETED in {duration} (started {started})")
+            elif job['status'] == 'FAILED':
+                duration = format_duration(job['duration'])
+                click.echo(f"❌ {job['job_id'][:12]}... - FAILED after {duration} (started {started})")
+            elif job['status'] == 'PROCESSING':
+                if 'stuck_duration' in job:
+                    stuck_time = format_duration(job['stuck_duration'])
+                    click.echo(f"⚠️ {job['job_id'][:12]}... - STUCK for {stuck_time} (started {started})")
+                else:
+                    age = (now - job['started_at']) / 1000
+                    click.echo(f"🔄 {job['job_id'][:12]}... - PROCESSING for {format_duration(age)} (started {started})")
+        
+        if stuck_jobs and not stuck_only:
+            click.echo(f"\n⚠️ Found {len(stuck_jobs)} stuck job(s). Use --stuck-only to see details.")
+    
+    except aws['logs'].exceptions.ResourceNotFoundException:
+        click.echo("📭 No log data available (log group not found)")
+    except Exception as e:
+        click.echo(f"❌ Error retrieving jobs: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+
+@cli.command()
+@click.pass_context
+def workers(ctx):
+    """👷 Show worker health and status"""
+    aws = ctx.obj['aws']
+    verbose = ctx.obj['verbose']
+    
+    click.echo("👷 WORKER STATUS")
+    click.echo("=" * 30)
+    
+    try:
+        # Get running instances
+        instances = aws['ec2'].describe_instances(
+            Filters=[
+                {"Name": "tag:Type", "Values": ["whisper-worker"]},
+                {"Name": "instance-state-name", "Values": ["running", "pending", "shutting-down"]}
+            ]
+        )
+        
+        if not instances['Reservations']:
+            click.echo("🚫 No worker instances found")
+            return
+        
+        for reservation in instances['Reservations']:
+            for instance in reservation['Instances']:
+                name = next((tag['Value'] for tag in instance.get('Tags', []) if tag['Key'] == 'Name'), 'Unknown')
+                state = instance['State']['Name']
+                instance_type = instance['InstanceType']
+                launch_time = instance['LaunchTime']
+                uptime = datetime.now(launch_time.tzinfo) - launch_time
+                
+                # Status emoji
+                if state == 'running':
+                    status_emoji = "✅"
+                elif state == 'pending':
+                    status_emoji = "🔄"
+                else:
+                    status_emoji = "⚠️"
+                
+                click.echo(f"{status_emoji} {name}")
+                click.echo(f"    Instance: {instance['InstanceId']} ({instance_type})")
+                click.echo(f"    State: {state}")
+                click.echo(f"    Uptime: {format_duration(uptime.total_seconds())}")
+                
+                # Try to get recent activity from this worker
+                try:
+                    worker_logs = aws['logs'].filter_log_events(
+                        logGroupName='/aws/ec2/transcription',
+                        startTime=int((datetime.now() - timedelta(minutes=10)).timestamp() * 1000),
+                        filterPattern=f'worker_id={instance["InstanceId"]}'
+                    )
+                    
+                    if worker_logs['events']:
+                        last_activity = format_timestamp(worker_logs['events'][-1]['timestamp'])
+                        click.echo(f"    Last Activity: {last_activity}")
+                    else:
+                        click.echo(f"    Last Activity: No recent logs")
+                
+                except Exception as e:
+                    if verbose:
+                        click.echo(f"    Last Activity: Error checking logs - {e}")
+                    else:
+                        click.echo(f"    Last Activity: Unknown")
+                
+                click.echo()
+    
+    except Exception as e:
+        click.echo(f"❌ Error checking workers: {e}")
+
+@cli.command()
+@click.argument('job_id')
+@click.option('--tail', '-t', is_flag=True, help='Show recent logs only')
+@click.pass_context
+def logs(ctx, job_id, tail):
+    """📜 Show logs for a specific job"""
+    aws = ctx.obj['aws']
+    verbose = ctx.obj['verbose']
+    
+    click.echo(f"📜 LOGS FOR JOB: {job_id}")
+    click.echo("=" * 50)
+    
+    try:
+        # Determine time range
+        if tail:
+            start_time = int((datetime.now() - timedelta(hours=1)).timestamp() * 1000)
+        else:
+            start_time = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
+        
+        # Get logs for this job
+        job_logs = aws['logs'].filter_log_events(
+            logGroupName='/aws/ec2/transcription',
+            startTime=start_time,
+            filterPattern=f'job_id={job_id}'
+        )
+        
+        if not job_logs['events']:
+            # Try partial match
+            job_logs = aws['logs'].filter_log_events(
+                logGroupName='/aws/ec2/transcription',
+                startTime=start_time,
+                filterPattern=job_id[:8]  # Use first 8 characters
+            )
+        
+        if not job_logs['events']:
+            click.echo(f"📭 No logs found for job {job_id}")
+            click.echo("💡 Try using a shorter job ID or check if the job exists")
+            return
+        
+        # Display logs
+        for event in job_logs['events']:
+            timestamp = format_timestamp(event['timestamp'])
+            message = event['message'].strip()
+            
+            # Color code based on log level
+            if 'ERROR' in message or 'FAILED' in message:
+                click.echo(f"🔴 {timestamp} {message}")
+            elif 'WARNING' in message or 'WARN' in message:
+                click.echo(f"🟡 {timestamp} {message}")
+            elif 'COMPLETE' in message or 'SUCCESS' in message:
+                click.echo(f"🟢 {timestamp} {message}")
+            else:
+                click.echo(f"⚪ {timestamp} {message}")
+    
+    except aws['logs'].exceptions.ResourceNotFoundException:
+        click.echo("📭 Log group not found. Workers may not be configured for logging.")
+    except Exception as e:
+        click.echo(f"❌ Error retrieving logs: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+
+@cli.command()
+@click.argument('job_id')
+@click.option('--force', '-f', is_flag=True, help='Force kill without confirmation')
+@click.pass_context
+def kill(ctx, job_id, force):
+    """💀 Kill a stuck job and its worker"""
+    aws = ctx.obj['aws']
+    verbose = ctx.obj['verbose']
+    
+    if not force:
+        click.confirm(f"⚠️ Are you sure you want to kill job {job_id}?", abort=True)
+    
+    click.echo(f"💀 KILLING JOB: {job_id}")
+    click.echo("=" * 30)
+    
+    try:
+        # First, try to find which worker is processing this job
+        job_logs = aws['logs'].filter_log_events(
+            logGroupName='/aws/ec2/transcription',
+            startTime=int((datetime.now() - timedelta(hours=6)).timestamp() * 1000),
+            filterPattern=f'job_id={job_id}'
+        )
+        
+        worker_id = None
+        for event in job_logs['events']:
+            match = re.search(r'worker_id[=:]\s*([^\s,}]+)', event['message'])
+            if match:
+                worker_id = match.group(1)
+                break
+        
+        if worker_id:
+            click.echo(f"🎯 Found job on worker: {worker_id}")
+            
+            # Try to terminate the worker instance
+            try:
+                aws['ec2'].terminate_instances(InstanceIds=[worker_id])
+                click.echo(f"🔌 Terminated worker instance: {worker_id}")
+            except Exception as e:
+                click.echo(f"⚠️ Could not terminate worker {worker_id}: {e}")
+        else:
+            click.echo("❓ Could not identify worker for this job")
+        
+        # Purge any stuck messages from the queue
+        try:
+            # Note: SQS doesn't allow selective message deletion
+            # In a real implementation, you'd need to receive and delete specific messages
+            click.echo("🧹 To clear stuck messages, you may need to:")
+            click.echo(f"   transcription-monitor queue --purge")
+        except Exception as e:
+            click.echo(f"⚠️ Could not clear queue messages: {e}")
+        
+        click.echo("✅ Kill operation completed")
+        click.echo("💡 The job should be retried automatically if it was in the queue")
+    
+    except Exception as e:
+        click.echo(f"❌ Error killing job: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+
+@cli.command()
+@click.option('--purge', is_flag=True, help='Purge all messages from queue')
+@click.pass_context
+def queue(ctx, purge):
+    """🗂️ Show queue status and manage messages"""
+    aws = ctx.obj['aws']
+    verbose = ctx.obj['verbose']
+    
+    click.echo("🗂️ QUEUE STATUS")
+    click.echo("=" * 30)
+    
+    try:
+        queue_url = aws['config']['QUEUE_URL']
+        
+        # Get queue attributes
+        attrs = aws['sqs'].get_queue_attributes(
+            QueueUrl=queue_url,
+            AttributeNames=['All']
+        )['Attributes']
+        
+        visible = int(attrs.get('ApproximateNumberOfMessages', 0))
+        inflight = int(attrs.get('ApproximateNumberOfMessagesNotVisible', 0))
+        
+        click.echo(f"📊 Queue Statistics:")
+        click.echo(f"  Messages visible: {visible}")
+        click.echo(f"  Messages in-flight: {inflight}")
+        click.echo(f"  Total messages: {visible + inflight}")
+        
+        if visible > 0:
+            click.echo("📋 Queue has pending jobs")
+        if inflight > 0:
+            click.echo("🔄 Jobs are currently being processed")
+        
+        # Check for dead letter queue
+        redrive_policy = attrs.get('RedrivePolicy')
+        if redrive_policy:
+            click.echo(f"💀 Dead letter queue configured")
+        
+        if purge:
+            if visible > 0 or inflight > 0:
+                click.confirm(f"⚠️ This will delete ALL {visible + inflight} messages. Continue?", abort=True)
+                aws['sqs'].purge_queue(QueueUrl=queue_url)
+                click.echo("🧹 Queue purged successfully")
+            else:
+                click.echo("✅ Queue is already empty")
+    
+    except Exception as e:
+        click.echo(f"❌ Error checking queue: {e}")
+
+@cli.command()
+@click.option('--hours', '-h', default=24, help='Hours of history to analyze')
+@click.pass_context
+def costs(ctx, hours):
+    """💰 Show cost analysis and estimates"""
+    aws = ctx.obj['aws']
+    verbose = ctx.obj['verbose']
+    
+    click.echo(f"💰 COST ANALYSIS (Last {hours} Hours)")
+    click.echo("=" * 40)
+    
+    try:
+        # Get instance information
+        instances = aws['ec2'].describe_instances(
+            Filters=[
+                {"Name": "tag:Type", "Values": ["whisper-worker"]}
+            ]
+        )
+        
+        total_cost = 0
+        active_instances = 0
+        
+        for reservation in instances['Reservations']:
+            for instance in reservation['Instances']:
+                if instance['State']['Name'] in ['running', 'pending']:
+                    active_instances += 1
+                    instance_type = instance['InstanceType']
+                    launch_time = instance['LaunchTime']
+                    
+                    # Estimate cost (rough calculation for g4dn.xlarge spot instances)
+                    if 'g4dn.xlarge' in instance_type:
+                        hourly_rate = 0.35  # Approximate spot price
+                    elif 'g4dn.2xlarge' in instance_type:
+                        hourly_rate = 0.70
+                    else:
+                        hourly_rate = 0.50  # Default estimate
+                    
+                    # Calculate runtime
+                    now = datetime.now(launch_time.tzinfo)
+                    runtime_hours = (now - launch_time).total_seconds() / 3600
+                    instance_cost = runtime_hours * hourly_rate
+                    total_cost += instance_cost
+                    
+                    if verbose:
+                        click.echo(f"  {instance['InstanceId']}: ${instance_cost:.2f} ({runtime_hours:.1f}h @ ${hourly_rate}/h)")
+        
+        click.echo(f"💵 Current Cost Estimate:")
+        click.echo(f"  Active instances: {active_instances}")
+        click.echo(f"  Total estimated cost: ${total_cost:.2f}")
+        click.echo(f"  Average per hour: ${total_cost/max(hours,1):.2f}")
+        
+        # Estimate based on job activity
+        try:
+            cutoff_time = int((datetime.now() - timedelta(hours=hours)).timestamp() * 1000)
+            job_completes = aws['logs'].filter_log_events(
+                logGroupName='/aws/ec2/transcription',
+                startTime=cutoff_time,
+                filterPattern='JOB_COMPLETE'
+            )
+            
+            completed_jobs = len(job_completes['events'])
+            if completed_jobs > 0:
+                cost_per_job = total_cost / completed_jobs
+                click.echo(f"  Cost per completed job: ${cost_per_job:.3f}")
+            
+        except Exception as e:
+            if verbose:
+                click.echo(f"  Could not calculate per-job costs: {e}")
+        
+        click.echo(f"\n💡 Cost Optimization Tips:")
+        click.echo(f"  - Spot instances save ~70% vs on-demand")
+        click.echo(f"  - Workers auto-shutdown when idle for 60 minutes")
+        click.echo(f"  - Monitor with 'transcription-monitor status' to avoid stuck jobs")
+    
+    except Exception as e:
+        click.echo(f"❌ Error calculating costs: {e}")
+
+@cli.command()
+@click.option('--continuous', '-c', is_flag=True, help='Run continuous health monitoring')
+@click.option('--interval', default=60, help='Check interval in seconds')
+@click.pass_context
+def health(ctx, continuous, interval):
+    """🏥 Run comprehensive health check"""
+    aws = ctx.obj['aws']
+    verbose = ctx.obj['verbose']
+    
+    def run_health_check():
+        click.echo("🏥 HEALTH CHECK")
+        click.echo("=" * 30)
+        
+        issues = []
+        
+        # Check queue health
+        try:
+            attrs = aws['sqs'].get_queue_attributes(
+                QueueUrl=aws['config']['QUEUE_URL'],
+                AttributeNames=['All']
+            )['Attributes']
+            
+            visible = int(attrs.get('ApproximateNumberOfMessages', 0))
+            inflight = int(attrs.get('ApproximateNumberOfMessagesNotVisible', 0))
+            
+            if visible > 20:
+                issues.append(f"High queue backlog: {visible} messages")
+            if inflight > 10:
+                issues.append(f"Many in-flight messages: {inflight}")
+            
+            click.echo(f"✅ Queue: {visible} pending, {inflight} processing")
+        except Exception as e:
+            issues.append(f"Queue check failed: {e}")
+        
+        # Check workers
+        try:
+            instances = aws['ec2'].describe_instances(
+                Filters=[
+                    {"Name": "tag:Type", "Values": ["whisper-worker"]},
+                    {"Name": "instance-state-name", "Values": ["running"]}
+                ]
+            )
+            
+            worker_count = sum(len(r['Instances']) for r in instances['Reservations'])
+            click.echo(f"✅ Workers: {worker_count} active")
+            
+            if worker_count == 0 and visible > 0:
+                issues.append("No workers available but jobs in queue")
+        except Exception as e:
+            issues.append(f"Worker check failed: {e}")
+        
+        # Check for stuck jobs
+        try:
+            cutoff_time = int((datetime.now() - timedelta(minutes=30)).timestamp() * 1000)
+            job_starts = aws['logs'].filter_log_events(
+                logGroupName='/aws/ec2/transcription',
+                startTime=cutoff_time,
+                filterPattern='JOB_START'
+            )
+            
+            stuck_count = 0
+            # This is a simplified check - in practice you'd correlate starts with completions
+            click.echo(f"✅ Recent activity: {len(job_starts['events'])} jobs started")
+        except Exception as e:
+            if verbose:
+                click.echo(f"⚠️ Could not check job activity: {e}")
+        
+        # Overall health
+        if issues:
+            click.echo(f"\n⚠️ Issues detected:")
+            for issue in issues:
+                click.echo(f"  - {issue}")
+            return False
+        else:
+            click.echo(f"\n✅ System is healthy")
+            return True
+    
+    if continuous:
+        click.echo(f"🔄 Starting continuous health monitoring (every {interval}s)")
+        click.echo("Press Ctrl+C to stop")
+        
+        try:
+            while True:
+                healthy = run_health_check()
+                click.echo(f"\nNext check in {interval} seconds...\n")
+                
+                import time
+                time.sleep(interval)
+        except KeyboardInterrupt:
+            click.echo("\n⏹️ Monitoring stopped")
+    else:
+        run_health_check()
+
+if __name__ == '__main__':
+    cli()

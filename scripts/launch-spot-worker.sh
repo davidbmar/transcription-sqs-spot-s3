@@ -5,6 +5,13 @@
 
 set -e
 
+# Parse command line arguments
+CPU_ONLY_FLAG=""
+if [ "$1" = "--cpu-only" ]; then
+    CPU_ONLY_FLAG="--cpu-only"
+    echo "🖥️ CPU-only mode requested"
+fi
+
 # Load configuration
 CONFIG_FILE=".env"
 if [ -f "$CONFIG_FILE" ]; then
@@ -89,15 +96,22 @@ else:
     print('❌ GPU test FAILED - falling back to CPU')
 " > /var/log/gpu-test.log 2>&1
 
-# Check nvidia-smi (PROVEN WORKING CHECK)
-if nvidia-smi > /var/log/nvidia-smi.log 2>&1; then
-    echo "✅ NVIDIA GPU detected and working!" | tee -a /var/log/gpu-test.log
-    GPU_MODE=""  # NO --cpu-only flag = GPU mode
-    echo "🚀 SELECTED MODE: GPU acceleration enabled" | tee -a /var/log/gpu-test.log
-else
-    echo "❌ NVIDIA GPU not accessible, falling back to CPU" | tee -a /var/log/gpu-test.log
+# Check if CPU-only mode was requested from command line
+if [ "$CPU_ONLY_FLAG" = "--cpu-only" ]; then
+    echo "🖥️ CPU-only mode forced by command line flag" | tee -a /var/log/gpu-test.log
     GPU_MODE="--cpu-only"
-    echo "🚀 SELECTED MODE: CPU-only fallback" | tee -a /var/log/gpu-test.log
+    echo "🚀 SELECTED MODE: CPU-only (forced)" | tee -a /var/log/gpu-test.log
+else
+    # Check nvidia-smi (PROVEN WORKING CHECK)
+    if nvidia-smi > /var/log/nvidia-smi.log 2>&1; then
+        echo "✅ NVIDIA GPU detected and working!" | tee -a /var/log/gpu-test.log
+        GPU_MODE=""  # NO --cpu-only flag = GPU mode
+        echo "🚀 SELECTED MODE: GPU acceleration enabled" | tee -a /var/log/gpu-test.log
+    else
+        echo "❌ NVIDIA GPU not accessible, falling back to CPU" | tee -a /var/log/gpu-test.log
+        GPU_MODE="--cpu-only"
+        echo "🚀 SELECTED MODE: CPU-only fallback" | tee -a /var/log/gpu-test.log
+    fi
 fi
 
 # Create working directory (PROVEN WORKING SETUP)
@@ -189,11 +203,19 @@ INSTANCE_ID=$(aws ec2 describe-spot-instance-requests \
 
 echo "GPU spot instance launched: $INSTANCE_ID"
 
-# Tag the instance
+# Generate unique worker name with timestamp
+WORKER_NAME="tr-$(date +%m%d-%H%M)-$(echo $INSTANCE_ID | cut -c-8)"
+if [ "$GPU_MODE" = "--cpu-only" ]; then
+    WORKER_NAME="tr-cpu-$(date +%m%d-%H%M)-$(echo $INSTANCE_ID | cut -c-8)"
+else
+    WORKER_NAME="tr-gpu-$(date +%m%d-%H%M)-$(echo $INSTANCE_ID | cut -c-8)"
+fi
+
+# Tag the instance with unique name
 aws ec2 create-tags \
     --region "$REGION" \
     --resources "$INSTANCE_ID" \
-    --tags Key=Name,Value=transcription-gpu-worker \
+    --tags Key=Name,Value=$WORKER_NAME \
            Key=Type,Value=whisper-worker \
            Key=Environment,Value=production \
            Key=Mode,Value=gpu-proven
