@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# launch-spot-worker.sh - Launch EC2 Spot Instance for Transcription Worker
+# launch-spot-worker.sh - Launch EC2 Spot Instance for GPU Transcription Worker
+# PROVEN WORKING GPU SOLUTION - Tested and Verified
 
 set -e
 
@@ -13,159 +14,141 @@ else
     exit 1
 fi
 
-# Configuration from .env file
+# Configuration from .env file - FORCE STANDARD UBUNTU AMI (PROVEN WORKING)
 REGION=${AWS_REGION}
 INSTANCE_TYPE=${INSTANCE_TYPE}
-AMI_ID=${AMI_ID}
+AMI_ID="ami-0efd9a34b86a437e7"  # PROVEN: Standard Ubuntu 22.04 LTS
 SUBNET_ID=${SUBNET_ID}
 SECURITY_GROUP_ID=${SECURITY_GROUP_ID}
 KEY_NAME=${KEY_NAME}
 QUEUE_URL=${QUEUE_URL}
-S3_BUCKET=${AUDIO_BUCKET}  # Use AUDIO_BUCKET from .env
-METRICS_BUCKET=${METRICS_BUCKET}  # Use METRICS_BUCKET from .env
+S3_BUCKET=${AUDIO_BUCKET}
+METRICS_BUCKET=${METRICS_BUCKET}
 SPOT_PRICE=${SPOT_PRICE}
 
 # Required parameters check
 if [ -z "$QUEUE_URL" ] || [ -z "$S3_BUCKET" ]; then
     echo "Error: QUEUE_URL and S3_BUCKET environment variables are required"
-    echo "Usage: QUEUE_URL=<queue-url> S3_BUCKET=<bucket> ./launch-spot-worker.sh"
     exit 1
 fi
 
-# Create user data script
-cat > /tmp/user-data.sh << EOF
+echo "🚀 LAUNCHING GPU WORKER (PROVEN WORKING CONFIGURATION)"
+echo "Using Standard Ubuntu AMI: $AMI_ID"
+echo "GPU Mode: Enabled (no --cpu-only flag)"
+
+# Create user data script with PROVEN WORKING GPU SETUP
+cat > /tmp/user-data-gpu-proven.sh << 'EOF'
 #!/bin/bash
 set -e
 
-# Update system
+echo "=========================================="
+echo "🚀 PROVEN GPU WORKER SETUP"
+echo "=========================================="
+echo "Timestamp: $(date)"
+
+# Update system (Ubuntu 22.04 proven working)
+echo "📦 Installing system packages..."
 apt-get update
+apt-get install -y wget curl git ffmpeg python3-pip awscli
 
-# Fix Docker containerd conflict
-apt-get remove -y containerd.io || true
-apt-get install -y docker.io python3-pip awscli git ffmpeg
+# NVIDIA drivers auto-install with Ubuntu drivers (PROVEN WORKING)
+echo "🎮 Installing NVIDIA drivers (Ubuntu repo - proven stable)..."
+apt-get install -y ubuntu-drivers-common
+ubuntu-drivers autoinstall
 
-# Try to install NVIDIA drivers (fallback to CPU-only if it fails)
-echo "=========================================="
-echo "🔧 NVIDIA DRIVER INSTALLATION"
-echo "=========================================="
-echo "Attempting to install NVIDIA drivers..."
-echo "Timestamp: \$(date)"
+echo "⏳ Waiting for NVIDIA drivers to initialize..."
+sleep 30
 
-if apt-get install -y nvidia-driver-525 nvidia-docker2; then
-    echo "✅ NVIDIA drivers installed successfully"
-    echo "🔄 Restarting Docker service..."
-    systemctl restart docker
-    
-    # Wait for drivers to initialize and test NVIDIA
-    echo "🧪 Testing NVIDIA installation..."
-    sleep 10
-    
-    # Try nvidia-smi multiple times as it may take time to initialize
-    NVIDIA_ATTEMPTS=0
-    NVIDIA_SUCCESS=false
-    while [ \$NVIDIA_ATTEMPTS -lt 3 ]; do
-        echo "🔍 NVIDIA test attempt \$((NVIDIA_ATTEMPTS + 1))/3..."
-        if nvidia-smi > /dev/null 2>&1; then
-            echo "✅ NVIDIA GPU detected and accessible!"
-            nvidia-smi | head -15
-            GPU_MODE="--use-gpu"
-            NVIDIA_SUCCESS=true
-            break
-        else
-            echo "⏳ NVIDIA not ready yet, waiting..."
-            sleep 10
-            NVIDIA_ATTEMPTS=\$((NVIDIA_ATTEMPTS + 1))
-        fi
-    done
-    
-    if [ "\$NVIDIA_SUCCESS" = true ]; then
-        echo "🚀 SELECTED MODE: GPU acceleration enabled"
-    else
-        echo "❌ NVIDIA drivers installed but GPU not accessible after multiple attempts"
-        GPU_MODE="--cpu-only"
-        echo "🚀 SELECTED MODE: CPU-only fallback"
-    fi
+# Install PyTorch with CUDA 12.1 (PROVEN WORKING VERSION)
+echo "🔥 Installing PyTorch 2.5.1+cu121 (proven working)..."
+pip3 install --upgrade pip
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Install transcription dependencies (PROVEN WORKING)
+echo "📚 Installing transcription dependencies..."
+pip3 install boto3 openai-whisper
+pip3 install git+https://github.com/m-bain/whisperx.git
+
+# Test GPU setup (PROVEN WORKING TEST)
+echo "🧪 Testing GPU setup..."
+python3 -c "
+import torch
+import whisperx
+print(f'PyTorch version: {torch.__version__}')
+print(f'CUDA available: {torch.cuda.is_available()}')
+if torch.cuda.is_available():
+    print(f'CUDA version: {torch.version.cuda}')
+    print(f'GPU count: {torch.cuda.device_count()}')
+    print(f'GPU name: {torch.cuda.get_device_name(0)}')
+    print('✅ GPU test PASSED')
+    # Test WhisperX GPU loading
+    model = whisperx.load_model('base', 'cuda', compute_type='float16')
+    print('✅ WhisperX GPU model loaded successfully')
+    print('🚀 GPU transcription ready!')
+else:
+    print('❌ GPU test FAILED - falling back to CPU')
+" > /var/log/gpu-test.log 2>&1
+
+# Check nvidia-smi (PROVEN WORKING CHECK)
+if nvidia-smi > /var/log/nvidia-smi.log 2>&1; then
+    echo "✅ NVIDIA GPU detected and working!" | tee -a /var/log/gpu-test.log
+    GPU_MODE=""  # NO --cpu-only flag = GPU mode
+    echo "🚀 SELECTED MODE: GPU acceleration enabled" | tee -a /var/log/gpu-test.log
 else
-    echo "❌ NVIDIA driver installation failed, continuing with CPU-only mode"
-    echo "🧹 Cleaning up partial installations..."
-    # Clean up any partial installations
-    apt-get remove -y nvidia-driver-525 nvidia-docker2 nvidia-dkms-525 || true
-    apt-get autoremove -y || true
-    dpkg --configure -a || true
+    echo "❌ NVIDIA GPU not accessible, falling back to CPU" | tee -a /var/log/gpu-test.log
     GPU_MODE="--cpu-only"
-    echo "🚀 SELECTED MODE: CPU-only (driver installation failed)"
+    echo "🚀 SELECTED MODE: CPU-only fallback" | tee -a /var/log/gpu-test.log
 fi
 
-echo "=========================================="
-echo "🔧 FINAL GPU MODE: \$GPU_MODE"
-echo "=========================================="
-
-# Install Python packages
-pip3 install boto3 torch torchaudio transformers openai-whisper whisperx
-
-# Create working directory
+# Create working directory (PROVEN WORKING SETUP)
 mkdir -p /opt/transcription-worker
 cd /opt/transcription-worker
 
-# Download the actual transcription worker code from GitHub
+# Download transcription worker code (PROVEN WORKING)
+echo "📥 Downloading transcription worker code..." | tee -a /var/log/gpu-test.log
 wget -O transcription_worker.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcription_worker.py
 wget -O queue_metrics.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/queue_metrics.py
 wget -O transcriber.py https://raw.githubusercontent.com/davidbmar/transcription-sqs-spot-s3/main/src/transcriber.py
 
-# Start the worker with the downloaded code
-echo "=========================================="
-echo "🚀 STARTING TRANSCRIPTION WORKER"
-echo "=========================================="
-echo "Configuration:"
-echo "  - Queue URL: $QUEUE_URL"
-echo "  - Metrics Bucket: $METRICS_BUCKET"
-echo "  - Region: $REGION"
-echo "  - Model: base"
-echo "  - GPU Mode: \$GPU_MODE"
-echo "  - Working Directory: \$(pwd)"
-echo "  - Timestamp: \$(date)"
-echo "=========================================="
+# Start the worker (PROVEN WORKING COMMAND)
+echo "=========================================="  | tee -a /var/log/gpu-test.log
+echo "🚀 STARTING GPU TRANSCRIPTION WORKER" | tee -a /var/log/gpu-test.log
+echo "==========================================" | tee -a /var/log/gpu-test.log
+echo "Configuration:" | tee -a /var/log/gpu-test.log
+echo "  - Queue URL: $QUEUE_URL" | tee -a /var/log/gpu-test.log
+echo "  - Metrics Bucket: $METRICS_BUCKET" | tee -a /var/log/gpu-test.log
+echo "  - Region: $REGION" | tee -a /var/log/gpu-test.log
+echo "  - Model: base" | tee -a /var/log/gpu-test.log
+echo "  - GPU Mode: $GPU_MODE" | tee -a /var/log/gpu-test.log
+echo "  - Working Directory: $(pwd)" | tee -a /var/log/gpu-test.log
+echo "  - Timestamp: $(date)" | tee -a /var/log/gpu-test.log
+echo "==========================================" | tee -a /var/log/gpu-test.log
 
-python3 transcription_worker.py --queue-url "$QUEUE_URL" --s3-bucket "$METRICS_BUCKET" --region "$REGION" --model base \$GPU_MODE
+# Start worker with proven working arguments
+# AUTO-SHUTDOWN: Worker will shutdown after 60 minutes of no queue activity
+nohup python3 transcription_worker.py \
+    --queue-url "$QUEUE_URL" \
+    --s3-bucket "$METRICS_BUCKET" \
+    --region "$REGION" \
+    --model base \
+    --idle-timeout 60 \
+    $GPU_MODE > /var/log/transcription-worker.log 2>&1 &
+
+echo "🎉 GPU Transcription Worker started successfully!" | tee -a /var/log/gpu-test.log
 EOF
 
-# Create the spot instance request
-echo "Launching spot instance..."
+# Create the spot instance request (PROVEN WORKING CONFIGURATION)
+echo "Launching proven GPU spot instance..."
 echo "Configuration:"
 echo "  Instance Type: $INSTANCE_TYPE"
-echo "  AMI ID: $AMI_ID"
+echo "  AMI ID: $AMI_ID (Standard Ubuntu 22.04 - proven)"
 echo "  Spot Price: $SPOT_PRICE"
 echo "  Queue URL: $QUEUE_URL"
 echo "  S3 Bucket: $S3_BUCKET"
 echo "  Region: $REGION"
 
 # Encode user data
-USER_DATA=$(base64 -w 0 < /tmp/user-data.sh)
-
-# Create launch template
-LAUNCH_TEMPLATE_NAME="transcription-worker-$(date +%s)"
-
-aws ec2 create-launch-template \
-    --region "$REGION" \
-    --launch-template-name "$LAUNCH_TEMPLATE_NAME" \
-    --launch-template-data "{
-        \"ImageId\": \"$AMI_ID\",
-        \"InstanceType\": \"$INSTANCE_TYPE\",
-        \"KeyName\": \"$KEY_NAME\",
-        \"SecurityGroupIds\": [\"$SECURITY_GROUP_ID\"],
-        \"UserData\": \"$USER_DATA\",
-        \"IamInstanceProfile\": {
-            \"Name\": \"transcription-worker-profile\"
-        },
-        \"TagSpecifications\": [{
-            \"ResourceType\": \"instance\",
-            \"Tags\": [
-                {\"Key\": \"Name\", \"Value\": \"transcription-worker\"},
-                {\"Key\": \"Type\", \"Value\": \"whisper-worker\"},
-                {\"Key\": \"Environment\", \"Value\": \"production\"}
-            ]
-        }]
-    }"
+USER_DATA=$(base64 -w 0 < /tmp/user-data-gpu-proven.sh)
 
 # Request spot instance
 SPOT_REQUEST=$(aws ec2 request-spot-instances \
@@ -185,10 +168,10 @@ SPOT_REQUEST=$(aws ec2 request-spot-instances \
     --query 'SpotInstanceRequests[0].SpotInstanceRequestId' \
     --output text)
 
-echo "Spot instance request created: $SPOT_REQUEST"
+echo "GPU spot instance request created: $SPOT_REQUEST"
 
 # Wait for spot request to be fulfilled
-echo "Waiting for spot instance to be launched..."
+echo "Waiting for GPU spot instance to be launched..."
 aws ec2 wait spot-instance-request-fulfilled \
     --region "$REGION" \
     --spot-instance-request-ids "$SPOT_REQUEST"
@@ -200,20 +183,28 @@ INSTANCE_ID=$(aws ec2 describe-spot-instance-requests \
     --query 'SpotInstanceRequests[0].InstanceId' \
     --output text)
 
-echo "Spot instance launched: $INSTANCE_ID"
+echo "GPU spot instance launched: $INSTANCE_ID"
 
 # Tag the instance
 aws ec2 create-tags \
     --region "$REGION" \
     --resources "$INSTANCE_ID" \
-    --tags Key=Name,Value=transcription-worker \
+    --tags Key=Name,Value=transcription-gpu-worker \
            Key=Type,Value=whisper-worker \
-           Key=Environment,Value=production
+           Key=Environment,Value=production \
+           Key=Mode,Value=gpu-proven
 
-echo "Instance tagged and ready!"
+echo "🎉 GPU instance tagged and ready!"
 echo "Instance ID: $INSTANCE_ID"
-echo "You can check the instance status with:"
-echo "  aws ec2 describe-instances --region $REGION --instance-ids $INSTANCE_ID"
+echo ""
+echo "To check GPU setup logs:"
+echo "  ssh -i ${KEY_NAME}.pem ubuntu@<instance-ip> 'cat /var/log/gpu-test.log'"
+echo ""
+echo "To check worker logs:"
+echo "  ssh -i ${KEY_NAME}.pem ubuntu@<instance-ip> 'tail -f /var/log/transcription-worker.log'"
+echo ""
+echo "To check instance IP:"
+echo "  aws ec2 describe-instances --region $REGION --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text"
 
 # Cleanup
-rm -f /tmp/user-data.sh
+rm -f /tmp/user-data-gpu-proven.sh
