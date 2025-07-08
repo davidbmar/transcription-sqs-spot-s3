@@ -5,3 +5,7 @@ STEP_020_COMPLETE=
 CONFIGURATION_VERSION=1.0
 STEP_025_COMPLETE=Sun Jul  6 20:03:52 UTC 2025
 STEP_040_COMPLETE=Sun Jul  6 20:08:53 UTC 2025
+step-040-deploy-worker-code: completed
+step-041-validate-worker-code: completed
+step-030-deploy-worker-code: completed
+step-031-validate-worker-code: completed

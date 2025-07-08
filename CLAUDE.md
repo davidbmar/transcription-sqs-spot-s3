@@ -57,14 +57,21 @@ CONFIG = load_config()
 3. **SQS Resources**: `step-020-create-sqs-resources.sh` + `step-021-validate-sqs-resources.sh`
 4. **EC2 Config**: `step-025-setup-ec2-configuration.sh` + `step-026-validate-ec2-configuration.sh`
 
-### ⚡ Worker Operations (Repeatable):
-5. **Launch Workers**: `step-030-launch-spot-worker.sh`
-6. **Health Check**: `step-035-check-worker-health.sh`
-7. **Process Jobs**: Submit via `send_to_queue.py` or direct SQS integration
+### ⚡ Worker Code Deployment:
+5. **Deploy Code**: `step-030-deploy-worker-code.sh` + `step-031-validate-worker-code.sh`
+
+### 🚀 Worker Operations (Repeatable):
+6. **Launch Workers**: `step-040-launch-spot-worker.sh`
+7. **Health Check**: `step-045-check-worker-health.sh`
+
+### 🔧 System Maintenance (As Needed):
+8. **System Fixes**: `step-050-update-system-fixes.sh`
+9. **End-to-End Test**: `step-055-test-complete-workflow.sh`
+10. **Process Jobs**: Submit via `send_to_queue.py` or direct SQS integration
 
 ### 🧹 Cleanup:
-8. **Workers Only**: `step-999-terminate-workers-or-selective-cleanup.sh --workers-only`
-9. **Complete Teardown**: `step-999-destroy-all-resources-complete-teardown.sh --all`
+11. **Workers Only**: `step-999-terminate-workers-or-selective-cleanup.sh --workers-only`
+12. **Complete Teardown**: `step-999-destroy-all-resources-complete-teardown.sh --all`
 
 ## 🔬 Worker Architecture & Features
 

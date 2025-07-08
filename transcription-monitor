@@ -118,7 +118,7 @@ def status(ctx):
         click.echo("\n👷 Worker Instances:")
         instances = aws['ec2'].describe_instances(
             Filters=[
-                {"Name": "tag:Type", "Values": ["whisper-worker"]},
+                {"Name": "tag:Type", "Values": ["whisper-worker", "faster-whisper-worker", "whisperx-worker", "base-whisper-worker", "benchmark-worker"]},
                 {"Name": "instance-state-name", "Values": ["running", "pending"]}
             ]
         )
@@ -340,7 +340,7 @@ def workers(ctx):
         # Get running instances
         instances = aws['ec2'].describe_instances(
             Filters=[
-                {"Name": "tag:Type", "Values": ["whisper-worker"]},
+                {"Name": "tag:Type", "Values": ["whisper-worker", "faster-whisper-worker", "whisperx-worker", "base-whisper-worker", "benchmark-worker"]},
                 {"Name": "instance-state-name", "Values": ["running", "pending", "shutting-down"]}
             ]
         )
@@ -681,7 +681,7 @@ def health(ctx, continuous, interval):
         try:
             instances = aws['ec2'].describe_instances(
                 Filters=[
-                    {"Name": "tag:Type", "Values": ["whisper-worker"]},
+                    {"Name": "tag:Type", "Values": ["whisper-worker", "faster-whisper-worker", "whisperx-worker", "base-whisper-worker", "benchmark-worker"]},
                     {"Name": "instance-state-name", "Values": ["running"]}
                 ]
             )
