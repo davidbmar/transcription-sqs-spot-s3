@@ -9,3 +9,20 @@ step-040-deploy-worker-code: completed
 step-041-validate-worker-code: completed
 step-030-deploy-worker-code: completed
 step-031-validate-worker-code: completed
+step-060-completed=2025-07-09T03:36:15Z
+deployment-path-selected=
+step-060-completed=2025-07-09T03:47:40Z
+deployment-path-selected=docker
+step-200-completed=2025-07-09T03:54:29Z
+ecr-repository-uri=821850226835.dkr.ecr.us-east-2.amazonaws.com/dbm-aud-tr-dev-whisper-transcriber
+step-201-completed=2025-07-09T03:55:44Z
+docker-validation-passed=true
+step-210-completed=2025-07-09T04:50:11Z
+docker-image-built=true
+docker-image-name=821850226835.dkr.ecr.us-east-2.amazonaws.com/dbm-aud-tr-dev-whisper-transcriber:latest
+step-211-completed=2025-07-09T04:59:35Z
+docker-image-pushed=true
+ecr-image-uri=821850226835.dkr.ecr.us-east-2.amazonaws.com/dbm-aud-tr-dev-whisper-transcriber:latest
+step-220-completed=2025-07-09T05:05:41Z
+docker-worker-instance-id=i-0bbca2b79aa95f773
+docker-worker-public-ip=18.220.250.104

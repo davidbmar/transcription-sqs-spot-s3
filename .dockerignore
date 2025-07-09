@@ -1,0 +1,48 @@
+# Git files
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.pytest_cache
+
+# Environment files
+.env
+.env.*
+!.env.template
+
+# Logs
+*.log
+logs/
+
+# AWS credentials
+.aws/
+*.pem
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.tar.gz
+
+# Documentation
+*.md
+docs/
+
+# Temporary files
+tmp/
+temp/

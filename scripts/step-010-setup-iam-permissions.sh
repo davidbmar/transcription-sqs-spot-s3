@@ -178,6 +178,27 @@ cat > /tmp/transcription-user-policy.json << EOF
       ]
     },
     {
+      "Sid": "ECROperations",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:PutImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:CreateRepository",
+        "ecr:DescribeRepositories",
+        "ecr:PutLifecyclePolicy",
+        "ecr:DescribeImages",
+        "ecr:ListImages",
+        "ecr:BatchDeleteImage"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "STSOperations",
       "Effect": "Allow",
       "Action": [
