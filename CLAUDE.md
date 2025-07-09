@@ -9,7 +9,7 @@
 ## 🏗️ System Architecture Overview
 
 ```
-Audio Files (S3) → SQS Queue → EC2 Spot Workers (GPU) → Transcripts (S3)
+Audio Files (S3) → SQS Queue → EC2 Workers (GPU) → Transcripts (S3)
                       ↓
                    DLQ (failed jobs)
 ```
@@ -17,10 +17,16 @@ Audio Files (S3) → SQS Queue → EC2 Spot Workers (GPU) → Transcripts (S3)
 ### Core Components:
 - **SQS Queue**: Manages transcription jobs with visibility timeout and retry logic
 - **Dead Letter Queue**: Handles failed jobs after max retries (default: 3)
-- **EC2 Spot Instances**: GPU-enabled workers (g4dn.xlarge) with CPU fallback
+- **EC2 Workers**: GPU-enabled workers (g4dn.xlarge) with CPU fallback
 - **S3 Buckets**: Store audio inputs, transcripts, and lightweight metrics
 - **Auto-scaling**: Queue-driven worker launching with cost optimization
 - **Enhanced Logging**: Comprehensive debugging throughout the pipeline
+- **Docker Support**: ECR-based containerized deployment path
+- **Dual Deployment**: Traditional EC2 direct install vs Docker containerized
+
+### 🛤️ Deployment Paths:
+- **Path A (Traditional)**: Direct EC2 installation with spot instances
+- **Path B (Docker)**: Containerized deployment with ECR and on-demand instances
 
 ## 🔧 Configuration Patterns
 
@@ -57,21 +63,30 @@ CONFIG = load_config()
 3. **SQS Resources**: `step-020-create-sqs-resources.sh` + `step-021-validate-sqs-resources.sh`
 4. **EC2 Config**: `step-025-setup-ec2-configuration.sh` + `step-026-validate-ec2-configuration.sh`
 
-### ⚡ Worker Code Deployment:
-5. **Deploy Code**: `step-030-deploy-worker-code.sh` + `step-031-validate-worker-code.sh`
+### 🛤️ Deployment Path Selection:
+5. **Choose Path**: `step-060-choose-deployment-path.sh`
 
-### 🚀 Worker Operations (Repeatable):
-6. **Launch Workers**: `step-040-launch-spot-worker.sh`
-7. **Health Check**: `step-045-check-worker-health.sh`
+### 🚀 Path A: Traditional EC2 (100-series):
+6. **EC2 Configuration**: `step-100-setup-ec2-configuration.sh` + `step-101-validate-ec2-configuration.sh`
+7. **Deploy Code**: `step-110-deploy-worker-code.sh` + `step-111-validate-worker-code.sh`
+8. **Launch Workers**: `step-120-launch-spot-worker.sh`
+9. **Health Check**: `step-125-check-worker-health.sh`
+10. **System Fixes**: `step-130-update-system-fixes.sh`
+11. **End-to-End Test**: `step-135-test-complete-workflow.sh`
 
-### 🔧 System Maintenance (As Needed):
-8. **System Fixes**: `step-050-update-system-fixes.sh`
-9. **End-to-End Test**: `step-055-test-complete-workflow.sh`
+### 🐳 Path B: Docker Deployment (200-series):
+6. **Docker Prerequisites**: `step-200-setup-docker-prerequisites.sh` + `step-201-validate-docker-setup.sh`
+7. **Build Image**: `step-210-build-worker-image.sh` + `step-211-push-to-ecr.sh`
+8. **Launch Workers**: `step-220-launch-docker-worker.sh`
+9. **Health Check**: `step-225-check-docker-health.sh`
+
+### 🔧 System Operations (Both Paths):
 10. **Process Jobs**: Submit via `send_to_queue.py` or direct SQS integration
+11. **Monitor Health**: Path-specific health check scripts
 
 ### 🧹 Cleanup:
-11. **Workers Only**: `step-999-terminate-workers-or-selective-cleanup.sh --workers-only`
-12. **Complete Teardown**: `step-999-destroy-all-resources-complete-teardown.sh --all`
+12. **Workers Only**: `step-999-terminate-workers-or-selective-cleanup.sh --workers-only`
+13. **Complete Teardown**: `step-999-destroy-all-resources-complete-teardown.sh --all`
 
 ## 🔬 Worker Architecture & Features
 
@@ -80,6 +95,16 @@ CONFIG = load_config()
 - **Fallback**: CPU-only mode with optimized compute types (float32)
 - **Smart Detection**: Automatic CUDA compatibility testing
 - **Graceful Handling**: Comprehensive error recovery
+- **Docker Support**: CUDA 11.8 containers with GPU passthrough
+- **Container Health**: HTTP health checks on port 8080
+
+### 🐳 Docker Features:
+- **Base Image**: `nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04`
+- **Size**: ~5.6GB compressed in ECR
+- **GPU Support**: Automatic GPU detection with CPU fallback
+- **Health Monitoring**: HTTP endpoint for container health
+- **Auto-restart**: Container restart policies for reliability
+- **Environment Isolation**: Consistent runtime environment
 
 ### Enhanced Logging Features:
 ```bash
@@ -163,6 +188,47 @@ if not queue_url or not bucket_name:
     raise ValueError("Required configuration missing. Run step-000-setup-configuration.sh")
 ```
 
+## 🐳 Docker Configuration Patterns
+
+### Docker Environment Variables:
+```bash
+# Docker containers receive environment variables from EC2 user-data
+docker run -d \
+    --name whisper-worker \
+    --gpus all \
+    -e AWS_REGION="$AWS_REGION" \
+    -e QUEUE_URL="$QUEUE_URL" \
+    -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+    -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+    -e AUDIO_BUCKET="$AUDIO_BUCKET" \
+    -e METRICS_BUCKET="$METRICS_BUCKET" \
+    -p 8080:8080 \
+    "$ECR_REPOSITORY_URI:latest"
+```
+
+### ECR Configuration:
+```bash
+# ECR repository naming follows queue prefix
+ECR_REPO_NAME="${QUEUE_PREFIX}-whisper-transcriber"
+ECR_REPOSITORY_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO_NAME"
+```
+
+### Docker Health Checks:
+```bash
+# Health check endpoint for container monitoring
+curl http://worker-ip:8080/health
+
+# Expected response
+{
+  "status": "healthy",
+  "timestamp": "2025-07-09T05:30:00Z",
+  "uptime": 300,
+  "gpu_available": true,
+  "worker_running": true,
+  "container_id": "hostname"
+}
+```
+
 ## 📁 Key Files & Their Roles
 
 ### Configuration Management:
@@ -170,17 +236,24 @@ if not queue_url or not bucket_name:
 - **`.env.template`**: Example configuration (commit)
 - **`.setup-status`**: Progress tracking for setup steps
 - **`iam-config.env`**: IAM-specific configuration cache
+- **`.deployment-path`**: Current deployment path selection
 
 ### Core Worker Implementation:
 - **`src/transcription_worker.py`**: Main worker loop and job processing
 - **`src/transcriber.py`**: WhisperX integration with GPU/CPU fallback
 - **`src/queue_metrics.py`**: S3-based metrics and queue monitoring
-- **`scripts/launch-spot-worker.sh`**: EC2 user-data startup script
+- **`scripts/launch-spot-worker.sh`**: EC2 user-data startup script (Traditional)
+- **`docker/worker/Dockerfile`**: Docker image definition
+- **`docker/worker/entrypoint.sh`**: Container startup script
+- **`docker/worker/health-check.py`**: HTTP health check server
 
 ### Monitoring & Health:
-- **`scripts/step-035-check-worker-health.sh`**: Comprehensive health monitoring
+- **`scripts/step-125-check-worker-health.sh`**: Traditional health monitoring
+- **`scripts/step-225-check-docker-health.sh`**: Docker health monitoring
+- **Health endpoint**: `http://worker-ip:8080/health` (Docker only)
 - **Cloud-init logs**: `/var/log/cloud-init-output.log` on workers
 - **Worker logs**: Real-time job processing logs
+- **Docker logs**: `docker logs container-name` for containerized workers
 
 ## 🔍 Health Monitoring Features
 
@@ -215,9 +288,14 @@ ps aux | grep transcription_worker
 4. ✅ **Network Access**: VPC, subnets, and connectivity verified
 
 ### Deployment:
-5. ✅ **Worker Launch**: `step-030-launch-spot-worker.sh` successful
-6. ✅ **Health Verification**: `step-035-check-worker-health.sh` shows operational
-7. ✅ **Integration Test**: Submit test job and verify end-to-end processing
+5. ✅ **Path Selection**: `step-060-choose-deployment-path.sh` completed
+6. ✅ **Worker Launch**: Path-specific launch script successful
+   - Traditional: `step-120-launch-spot-worker.sh`
+   - Docker: `step-220-launch-docker-worker.sh`
+7. ✅ **Health Verification**: Path-specific health check shows operational
+   - Traditional: `step-125-check-worker-health.sh`
+   - Docker: `step-225-check-docker-health.sh`
+8. ✅ **Integration Test**: Submit test job and verify end-to-end processing
 
 ### Post-Deployment:
 8. ✅ **Monitoring**: CloudWatch logs and S3 metrics tracking
@@ -233,6 +311,12 @@ ps aux | grep transcription_worker
 2. Verify IAM: Check worker role permissions
 3. Review logs: sudo tail -f /var/log/cloud-init-output.log
 4. Test GPU: nvidia-smi (if available)
+
+# Docker-specific issues
+1. Check container: docker ps -a
+2. Container logs: docker logs container-name
+3. Health check: curl http://worker-ip:8080/health
+4. GPU in container: docker exec container-name nvidia-smi
 
 # WhisperX errors
 1. Check compute type: Look for float16/float32 messages
