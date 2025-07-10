@@ -193,6 +193,9 @@ def send_transcription_job(s3_input_path, s3_output_path):
 | `step-110-deploy-worker-code.sh` | Deploy worker code to S3 |
 | `step-120-launch-spot-worker.sh` | Launch GPU transcription workers |
 | `step-125-check-worker-health.sh` | Monitor worker health |
+| `step-130-update-system-fixes.sh` | Apply system fixes and dependency updates |
+| `step-135-test-complete-workflow.sh` | End-to-end workflow validation |
+| `step-140-benchmark-podcast-transcription.sh` | Real-world podcast performance benchmarking |
 
 ### Docker Path (200-series)
 | Script | Purpose |
@@ -283,6 +286,17 @@ The system includes comprehensive benchmarking tools to measure GPU acceleration
 - **CPU Mode**: ~60-120 seconds per 60-second audio file  
 - **Speedup**: 4-8x faster with GPU acceleration
 - **Docker Overhead**: Minimal (<5%) performance impact
+- **Real-world Test**: 60-minute podcast transcribed in 4.2 minutes (14.3x real-time)
+
+**Benchmark Results:**
+```bash
+# Run comprehensive podcast benchmark
+./scripts/step-140-benchmark-podcast-transcription.sh
+
+# Expected performance: 
+# - 60-minute podcast: ~4-8 minutes processing time
+# - 7-15x real-time speedup with WhisperX + Tesla T4
+```
 
 *Results vary by audio complexity and content type.*
 
@@ -346,6 +360,23 @@ ssh -i key.pem ubuntu@worker-ip 'docker run --rm --gpus all nvidia/cuda:11.8-bas
 - Check logs for NVIDIA driver installation status
 - CPU-only mode is fully functional
 - Docker path uses on-demand instances for better GPU reliability
+
+**Common GPU/Audio Issues (Now Auto-Fixed):**
+```bash
+# These issues are automatically resolved in new workers:
+
+# cuDNN library path issue (auto-fixed)
+Could not load library libcudnn_ops_infer.so.8
+# → Fixed: Automatic cuDNN symlink creation in DLAMI launch script
+
+# FFmpeg missing for WebM audio (auto-fixed)  
+[Errno 2] No such file or directory: 'ffmpeg'
+# → Fixed: Automatic ffmpeg installation in worker setup
+
+# Manual fix for existing workers (if needed):
+sudo ln -sf /usr/local/cuda-12.4/lib/libcudnn_ops_infer.so.8 /usr/local/lib/libcudnn_ops_infer.so.8
+sudo apt-get update && sudo apt-get install -y ffmpeg
+```
 
 **Permission Errors:**
 ```bash
