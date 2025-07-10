@@ -116,6 +116,22 @@ fi
 
 # PHASE 2: Python Dependencies (minimal since DLAMI has most packages)
 log_step "🐍 PHASE 2: Installing transcription-specific dependencies"
+
+# Install ffmpeg for audio format support (WebM, etc.)
+log_step "📦 Installing ffmpeg for audio format support..."
+apt-get update && apt-get install -y ffmpeg
+log_step "✅ FFmpeg installed"
+
+# Fix cuDNN library paths for PyTorch/WhisperX compatibility
+log_step "🔧 Creating cuDNN library symlinks for GPU acceleration..."
+if [ -f "/usr/local/cuda-12.4/lib/libcudnn_ops_infer.so.8" ] && [ ! -L "/usr/local/lib/libcudnn_ops_infer.so.8" ]; then
+    ln -sf /usr/local/cuda-12.4/lib/libcudnn_ops_infer.so.8 /usr/local/lib/libcudnn_ops_infer.so.8
+    ln -sf /usr/local/cuda-12.4/lib/libcudnn_ops_train.so.8 /usr/local/lib/libcudnn_ops_train.so.8
+    log_step "✅ cuDNN symlinks created"
+else
+    log_step "⚠️ cuDNN libraries not found or already linked"
+fi
+
 pip3 install --upgrade pip boto3 openai-whisper
 pip3 install git+https://github.com/m-bain/whisperx.git
 log_step "✅ Dependencies installed"
