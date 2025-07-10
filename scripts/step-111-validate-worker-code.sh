@@ -6,7 +6,7 @@
 set -e
 
 echo "=========================================="
-echo "STEP 041: Validate Worker Code Deployment"
+echo "STEP 111: Validate Worker Code Deployment (PATH 100)"
 echo "=========================================="
 echo ""
 echo "This step validates that worker code is properly deployed to S3"
@@ -27,9 +27,9 @@ echo "🔍 Checking prerequisites..."
 
 # Check if previous step completed
 if grep -q "step-030-deploy-worker-code: completed" .setup-status 2>/dev/null; then
-    echo "✅ Step 030 completed successfully"
+    echo "✅ Step 110 completed successfully"
 else
-    echo "❌ Error: Step 030 not completed. Run step-030-deploy-worker-code.sh first."
+    echo "❌ Error: Step 110 not completed. Run step-110-deploy-worker-code.sh first."
     exit 1
 fi
 
@@ -273,9 +273,10 @@ echo ""
 # Update setup status
 echo "step-031-validate-worker-code: completed" >> .setup-status
 
-echo "✅ Step 031 completed successfully!"
-echo ""
-echo "Next steps:"
-echo "1. Launch workers with: ./scripts/step-040-launch-spot-worker.sh"
-echo "2. Check health with: ./scripts/step-045-check-worker-health.sh"
-echo "3. Run benchmarks with S3-deployed code"
+echo "✅ Step 111 completed successfully!"
+
+# Auto-detect and show next step
+if [ -f "$(dirname "$0")/next-step-helper.sh" ]; then
+    source "$(dirname "$0")/next-step-helper.sh"
+    show_next_step "$0" "$(dirname "$0")"
+fi

@@ -239,6 +239,14 @@ class TranscriptionWorker:
             priority = body.get('priority', 1)
             retry_count = body.get('retry_count', 0)
             
+            # Validate required fields
+            if not job_id:
+                raise ValueError("Missing required field: job_id")
+            if not s3_input_path:
+                raise ValueError("Missing required field: s3_input_path")
+            if not s3_output_path:
+                raise ValueError("Missing required field: s3_output_path")
+            
             logger.info(f"🎬 STARTING JOB {job_id}")
             logger.info(f"📥 Input: {s3_input_path}")
             logger.info(f"📤 Output: {s3_output_path}")

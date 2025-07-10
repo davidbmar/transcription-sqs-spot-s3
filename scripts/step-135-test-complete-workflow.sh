@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# step-055-test-complete-workflow.sh - Test the complete transcription workflow
+# step-135-test-complete-workflow.sh - Test complete DLAMI transcription workflow (PATH 100)
 
 set -e
 
@@ -135,7 +135,13 @@ if [ -n "$RUNNING_WORKERS" ]; then
     exit 1
 else
     echo -e "${YELLOW}[WARNING]${NC} No workers running. Launch a worker with:"
-    echo "  ./scripts/step-030-launch-spot-worker.sh"
+    echo "  ./scripts/step-120-launch-dlami-ondemand-worker.sh"
     echo
     echo -e "${GREEN}[INFO]${NC} Job queued successfully. Will be processed when worker starts."
+fi
+
+# Auto-detect and show next step
+if [ -f "$(dirname "$0")/next-step-helper.sh" ]; then
+    source "$(dirname "$0")/next-step-helper.sh"
+    show_next_step "$0" "$(dirname "$0")"
 fi

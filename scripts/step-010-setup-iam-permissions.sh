@@ -387,6 +387,17 @@ cat > /tmp/transcription-worker-policy.json << EOF
         "logs:PutLogEvents"
       ],
       "Resource": "arn:aws:logs:*:$ACCOUNT_ID:*"
+    },
+    {
+      "Sid": "ECRAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "*"
     }
   ]
 }

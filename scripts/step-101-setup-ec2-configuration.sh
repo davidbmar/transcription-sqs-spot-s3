@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# step-015-setup-ec2-configuration.sh - Setup EC2 configuration for spot instances
+# step-101-setup-ec2-configuration.sh - Setup EC2 configuration for DLAMI on-demand instances (PATH 100)
 
 set -e
 
@@ -19,7 +19,7 @@ else
     exit 1
 fi
 
-echo -e "${GREEN}[INFO]${NC} Setting up EC2 configuration for transcription workers..."
+echo -e "${GREEN}[INFO]${NC} Setting up EC2 configuration for DLAMI on-demand workers (PATH 100)..."
 echo -e "${GREEN}[INFO]${NC} AWS Region: $AWS_REGION"
 
 # Check if EC2 configuration is already complete
@@ -168,11 +168,13 @@ echo "Security Group: $SECURITY_GROUP_ID"
 echo "Key Name: $KEY_NAME"
 echo "AMI ID: $AMI_ID"
 echo "Instance Type: $INSTANCE_TYPE"
-echo "Max Spot Price: \$$SPOT_PRICE"
+echo "Instance Pricing: On-Demand (reliable, no interruption risk)"
 echo
-echo "Next steps:"
-echo "1. You can now launch spot instances using ./scripts/launch-spot-worker.sh"
-echo "2. SSH into instances using: ssh -i ${KEY_NAME}.pem ubuntu@<instance-ip>"
+# Auto-detect and show next step
+if [ -f "$(dirname "$0")/next-step-helper.sh" ]; then
+    source "$(dirname "$0")/next-step-helper.sh"
+    show_next_step "$0" "$(dirname "$0")"
+fi
 echo
 echo -e "${GREEN}[INFO]${NC} EC2 configuration saved to $CONFIG_FILE"
 

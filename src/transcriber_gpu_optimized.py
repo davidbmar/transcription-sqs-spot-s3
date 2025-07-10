@@ -90,8 +90,7 @@ class GPUOptimizedTranscriber:
                 self.model_name, 
                 self.device, 
                 compute_type=compute_type,
-                download_root=None,  # Use default cache
-                in_memory=True  # Keep model in memory
+                download_root=None  # Use default cache
             )
             
             logger.info(f"✅ MODEL LOADED: {self.model_name} with {compute_type} compute")

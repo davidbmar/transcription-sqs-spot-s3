@@ -160,17 +160,8 @@ if [ -n "$INSTANCE_TYPE" ]; then
         "Instance type may not be available in this region"
 fi
 
-# Check 7: Spot price configuration
-check_status "Spot price configured" \
-    "[ -n '$SPOT_PRICE' ]" \
-    "SPOT_PRICE should be set in .env"
-
-if [ -n "$SPOT_PRICE" ]; then
-    # Validate spot price format (should be a number)
-    check_status "Spot price is valid number" \
-        "echo '$SPOT_PRICE' | grep -qE '^[0-9]+(\.[0-9]+)?$'" \
-        "Spot price should be a valid decimal number"
-fi
+# Check 7: Instance pricing validation (on-demand)
+echo -e "${GREEN}✓${NC} On-demand pricing configured (no spot pricing needed for PATH 100)"
 
 # Check 8: Test launch template creation (dry run)
 echo -e "${YELLOW}[INFO]${NC} Testing launch template creation (dry run)..."
@@ -212,16 +203,19 @@ if [ $VALIDATION_PASSED -eq 1 ]; then
     echo "- Subnet: $SUBNET_ID (AZ: $AZ)"
     echo "- AMI: $AMI_ID"
     echo "- Instance Type: $INSTANCE_TYPE"
-    echo "- Max Spot Price: \$$SPOT_PRICE"
+    echo "- Instance Pricing: On-Demand (reliable, no interruption)"
     echo
-    echo "Next step: Launch spot worker instances"
-    echo "  ./scripts/step-030-launch-spot-worker.sh"
+    # Auto-detect and show next step
+    if [ -f "$(dirname "$0")/next-step-helper.sh" ]; then
+        source "$(dirname "$0")/next-step-helper.sh"
+        show_next_step "$0" "$(dirname "$0")"
+    fi
 else
     echo -e "${RED}✗ EC2 configuration validation FAILED${NC}"
     echo
     echo "Please fix the issues above before proceeding."
     echo "You may need to re-run:"
-    echo "  ./scripts/step-025-setup-ec2-configuration.sh"
+    echo "  ./scripts/step-101-setup-ec2-configuration.sh"
 fi
 echo -e "${BLUE}======================================${NC}"
 

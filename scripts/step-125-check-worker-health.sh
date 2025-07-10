@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# step-045-check-worker-health.sh - Check worker instance health and readiness
+# step-125-check-worker-health.sh - Check DLAMI worker instance health and readiness (PATH 100)
 
 set -e
 
@@ -9,6 +9,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Load configuration
@@ -21,12 +22,30 @@ else
 fi
 
 echo -e "${BLUE}======================================${NC}"
-echo -e "${BLUE}Worker Instance Health Check${NC}"
+echo -e "${BLUE}Worker Instance Health Check (with Auto-Wait)${NC}"
 echo -e "${BLUE}======================================${NC}"
 echo
 
-# Find running worker instances
-echo -e "${GREEN}[STEP 1]${NC} Finding worker instances..."
+# Configuration for auto-wait
+MAX_WAIT_MINUTES=6  # 2x expected time for DLAMI (3 min expected)
+CHECK_INTERVAL=60   # Check every 60 seconds
+MAX_ATTEMPTS=$((MAX_WAIT_MINUTES * 60 / CHECK_INTERVAL))
+ATTEMPT=1
+
+echo -e "${YELLOW}[INFO]${NC} Will check every ${CHECK_INTERVAL}s for up to ${MAX_WAIT_MINUTES} minutes..."
+echo
+
+# Main health check function
+check_worker_health() {
+    local attempt_num=$1
+    local max_attempts=$2
+    
+    echo -e "${BLUE}======================================${NC}"
+    echo -e "${BLUE}Health Check Attempt $attempt_num/$max_attempts${NC}"
+    echo -e "${BLUE}======================================${NC}"
+    
+    # Find running worker instances
+    echo -e "${GREEN}[STEP 1]${NC} Finding worker instances..."
 INSTANCES=$(aws ec2 describe-instances \
     --region "$AWS_REGION" \
     --filters \
@@ -37,15 +56,20 @@ INSTANCES=$(aws ec2 describe-instances \
 
 if [ -z "$INSTANCES" ]; then
     echo -e "${RED}[ERROR]${NC} No worker instances found"
-    exit 1
+    return 1
 fi
 
 echo -e "${GREEN}[OK]${NC} Found worker instances:"
 echo "$INSTANCES"
 echo
 
+# Track if any worker is healthy
+local healthy_workers=0
+local total_workers=0
+
 # Check each instance
 while IFS=$'\t' read -r INSTANCE_ID STATE PUBLIC_IP LAUNCH_TIME; do
+    ((total_workers++))
     echo -e "${GREEN}[STEP 2]${NC} Checking instance: $INSTANCE_ID"
     echo "  State: $STATE"
     echo "  Public IP: $PUBLIC_IP" 
@@ -86,6 +110,7 @@ while IFS=$'\t' read -r INSTANCE_ID STATE PUBLIC_IP LAUNCH_TIME; do
             
             if [ "$WORKER_PROCESSES" -gt 0 ]; then
                 echo -e "${GREEN}[OK]${NC} Transcription worker is running ($WORKER_PROCESSES processes)"
+                ((healthy_workers++))
                 
                 # Check worker logs for errors
                 echo -e "${GREEN}[STEP 6]${NC} Checking recent worker logs..."
@@ -139,6 +164,65 @@ while IFS=$'\t' read -r INSTANCE_ID STATE PUBLIC_IP LAUNCH_TIME; do
     
 done <<< "$INSTANCES"
 
+    # Return success if any workers are healthy
+    echo -e "${BLUE}Status: $healthy_workers/$total_workers workers healthy${NC}"
+    
+    if [ "$healthy_workers" -gt 0 ]; then
+        echo -e "${GREEN}✅ SUCCESS: At least one worker is healthy!${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}⏳ No healthy workers yet, will retry...${NC}"
+        return 1
+    fi
+}
+
+# Main execution with retry loop
+echo -e "${YELLOW}🔄 Starting health check with auto-retry...${NC}"
+echo
+
+SUCCESS=false
+
+while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+    REMAINING_MINUTES=$(( (MAX_ATTEMPTS - ATTEMPT + 1) * CHECK_INTERVAL / 60 ))
+    echo -e "${CYAN}⏱️  Attempt $ATTEMPT/$MAX_ATTEMPTS (${REMAINING_MINUTES} min remaining)${NC}"
+    
+    if check_worker_health $ATTEMPT $MAX_ATTEMPTS; then
+        SUCCESS=true
+        break
+    fi
+    
+    if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+        echo -e "${YELLOW}⏳ Waiting ${CHECK_INTERVAL} seconds before next check...${NC}"
+        echo
+        sleep $CHECK_INTERVAL
+    fi
+    
+    ((ATTEMPT++))
+done
+
+echo
 echo -e "${BLUE}======================================${NC}"
-echo -e "${BLUE}Health Check Complete${NC}"
+
+if [ "$SUCCESS" = true ]; then
+    echo -e "${GREEN}🎉 HEALTH CHECK SUCCESSFUL!${NC}"
+    echo -e "${GREEN}Worker(s) are healthy and ready to process jobs${NC}"
+    
+    # Auto-detect and show next step
+    if [ -f "$(dirname "$0")/next-step-helper.sh" ]; then
+        source "$(dirname "$0")/next-step-helper.sh"
+        show_next_step "$0" "$(dirname "$0")"
+    fi
+else
+    echo -e "${RED}❌ HEALTH CHECK TIMEOUT${NC}"
+    echo -e "${RED}Workers not healthy after ${MAX_WAIT_MINUTES} minutes${NC}"
+    echo
+    echo -e "${YELLOW}💡 Troubleshooting suggestions:${NC}"
+    echo "1. Check cloud-init logs: ssh -i ${KEY_NAME}.pem ubuntu@<IP> 'sudo tail -50 /var/log/cloud-init-output.log'"
+    echo "2. Check DLAMI setup logs: ssh -i ${KEY_NAME}.pem ubuntu@<IP> 'sudo tail -30 /var/log/dlami-worker-setup.log'"
+    echo "3. Check worker logs: ssh -i ${KEY_NAME}.pem ubuntu@<IP> 'tail -30 /var/log/transcription-worker.log'"
+    echo "4. Manually re-run health check: ./scripts/step-125-check-worker-health.sh"
+    
+    exit 1
+fi
+
 echo -e "${BLUE}======================================${NC}"

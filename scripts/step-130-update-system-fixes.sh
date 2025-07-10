@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# step-050-update-system-fixes.sh - Apply fixes discovered during testing
+# step-130-update-system-fixes.sh - Apply fixes for DLAMI deployment (PATH 100)
 
 set -e
 
@@ -369,3 +369,8 @@ echo
 echo "To re-run IAM permissions with fixes:"
 echo "  ./scripts/step-010-setup-iam-permissions.sh"
 echo
+# Auto-detect and show next step
+if [ -f "$(dirname "$0")/next-step-helper.sh" ]; then
+    source "$(dirname "$0")/next-step-helper.sh"
+    show_next_step "$0" "$(dirname "$0")"
+fi

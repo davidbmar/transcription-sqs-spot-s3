@@ -222,5 +222,9 @@ echo ""
 echo "step-030-deploy-worker-code: completed" >> .setup-status
 
 echo "✅ Step 030 completed successfully!"
-echo ""
-echo "Next step: ./scripts/step-031-validate-worker-code.sh"
+
+# Auto-detect and show next step
+if [ -f "$(dirname "$0")/next-step-helper.sh" ]; then
+    source "$(dirname "$0")/next-step-helper.sh"
+    show_next_step "$0" "$(dirname "$0")"
+fi
