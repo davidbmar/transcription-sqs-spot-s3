@@ -64,11 +64,7 @@ cd transcription-sqs-spot-s3
 ./scripts/step-020-create-sqs-resources.sh
 ./scripts/step-021-validate-sqs-resources.sh
 
-# 5. Configure EC2 instances
-./scripts/step-025-setup-ec2-configuration.sh
-./scripts/step-026-validate-ec2-configuration.sh
-
-# 6. 🛤️ CHOOSE DEPLOYMENT PATH
+# 5. 🛤️ CHOOSE DEPLOYMENT PATH
 ./scripts/step-060-choose-deployment-path.sh
 ```
 
@@ -183,7 +179,6 @@ def send_transcription_job(s3_input_path, s3_output_path):
 | `step-000-setup-configuration.sh` | Create `.env` configuration file |
 | `step-010-setup-iam-permissions.sh` | Configure IAM roles and policies |
 | `step-020-create-sqs-resources.sh` | Create SQS queues and DLQ |
-| `step-025-setup-ec2-configuration.sh` | Configure EC2 security groups and keys |
 | `step-060-choose-deployment-path.sh` | **Choose between Traditional or Docker** |
 
 ### Traditional EC2 Path (100-series)

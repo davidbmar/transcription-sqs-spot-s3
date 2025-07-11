@@ -1,15 +1,15 @@
-SQS Resources Created on Thu Jul 10 02:19:12 UTC 2025
+SQS Resources Created on Fri Jul 11 05:05:43 UTC 2025
 ================================
 
-Queue Name: dbm-aud-tr-dev-queue
-Queue URL: https://sqs.us-east-2.amazonaws.com/821850226835/dbm-aud-tr-dev-queue
-Queue ARN: arn:aws:sqs:us-east-2:821850226835:dbm-aud-tr-dev-queue
+Queue Name: ad-tra-dev-queue
+Queue URL: https://sqs.us-east-2.amazonaws.com/821850226835/ad-tra-dev-queue
+Queue ARN: arn:aws:sqs:us-east-2:821850226835:ad-tra-dev-queue
 
-DLQ Name: dbm-aud-tr-dev-dlq
-DLQ URL: https://sqs.us-east-2.amazonaws.com/821850226835/dbm-aud-tr-dev-dlq
-DLQ ARN: arn:aws:sqs:us-east-2:821850226835:dbm-aud-tr-dev-dlq
+DLQ Name: ad-tra-dev-dlq
+DLQ URL: https://sqs.us-east-2.amazonaws.com/821850226835/ad-tra-dev-dlq
+DLQ ARN: arn:aws:sqs:us-east-2:821850226835:ad-tra-dev-dlq
 
-Metrics Bucket: s3://dbm-aud-tr-dev-metrics
+Metrics Bucket: s3://ad-tra-dev-metrics
 Region: us-east-2
 Account ID: 821850226835
 

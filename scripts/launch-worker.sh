@@ -1,1 +1,1 @@
-./scripts/step-220-launch-docker-worker.sh
+./scripts/step-120-launch-spot-worker.sh

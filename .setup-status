@@ -1,66 +1,7 @@
 # Setup Status Tracker
-STEP_000_COMPLETE=Sun Jul  6 17:10:09 UTC 2025
+STEP_000_COMPLETE=Fri Jul 11 04:59:15 UTC 2025
 STEP_010_COMPLETE=
 STEP_020_COMPLETE=
 CONFIGURATION_VERSION=1.0
-STEP_025_COMPLETE=Sun Jul  6 20:03:52 UTC 2025
-STEP_040_COMPLETE=Sun Jul  6 20:08:53 UTC 2025
-step-040-deploy-worker-code: completed
-step-041-validate-worker-code: completed
-step-030-deploy-worker-code: completed
-step-031-validate-worker-code: completed
-step-060-completed=2025-07-09T03:36:15Z
-deployment-path-selected=
-step-060-completed=2025-07-09T03:47:40Z
+step-060-completed=2025-07-11T05:13:09Z
 deployment-path-selected=docker
-step-200-completed=2025-07-09T03:54:29Z
-ecr-repository-uri=821850226835.dkr.ecr.us-east-2.amazonaws.com/dbm-aud-tr-dev-whisper-transcriber
-step-201-completed=2025-07-09T03:55:44Z
-docker-validation-passed=true
-step-210-completed=2025-07-09T04:50:11Z
-docker-image-built=true
-docker-image-name=821850226835.dkr.ecr.us-east-2.amazonaws.com/dbm-aud-tr-dev-whisper-transcriber:latest
-step-211-completed=2025-07-09T04:59:35Z
-docker-image-pushed=true
-ecr-image-uri=821850226835.dkr.ecr.us-east-2.amazonaws.com/dbm-aud-tr-dev-whisper-transcriber:latest
-step-220-completed=2025-07-09T05:05:41Z
-docker-worker-instance-id=i-0bbca2b79aa95f773
-docker-worker-public-ip=18.220.250.104
-step-220-completed=2025-07-09T16:50:45Z
-docker-worker-instance-id=i-080ba12a4c66925e0
-docker-worker-public-ip=18.191.183.158
-step-120-dlami-completed=2025-07-10T01:30:06Z
-worker-instance-id=i-091b589163edb83cb
-worker-public-ip=18.222.252.103
-worker-ami=deep-learning
-step-030-deploy-worker-code: completed
-step-030-deploy-worker-code: completed
-step-031-validate-worker-code: completed
-step-111-completed="2025-07-10T02:08:27Z"
-step-120-completed=2025-07-10T02:08:50Z
-worker-instance-id=i-00486ba7d27ecaf32
-worker-public-ip=3.21.103.68
-worker-ami=deep-learning
-step-030-deploy-worker-code: completed
-step-031-validate-worker-code: completed
-step-120-completed=2025-07-10T03:41:59Z
-worker-instance-id=i-019f3b6ffa73eb21f
-worker-public-ip=18.221.211.151
-worker-ami=deep-learning
-step-120-completed=2025-07-10T03:43:31Z
-worker-instance-id=i-03737064d4d91206e
-worker-public-ip=52.14.196.67
-worker-ami=deep-learning
-step-120-manual-completed=Thu Jul 10 04:04:00 UTC 2025
-worker-instance-id=i-001e51a1079c7d0e8
-worker-public-ip=18.188.113.50
-worker-name=tr-manual-0710-0403-i-001e51
-STEP_025_COMPLETE=Thu Jul 10 04:30:42 UTC 2025
-step-030-deploy-worker-code: completed
-step-031-validate-worker-code: completed
-step-031-validate-worker-code: completed
-step-031-validate-worker-code: completed
-step-031-validate-worker-code: completed
-step-031-validate-worker-code: completed
-step-030-deploy-worker-code: completed
-step-031-validate-worker-code: completed
