@@ -124,12 +124,33 @@ log_step "✅ FFmpeg installed"
 
 # Fix cuDNN library paths for PyTorch/WhisperX compatibility
 log_step "🔧 Creating cuDNN library symlinks for GPU acceleration..."
-if [ -f "/usr/local/cuda-12.4/lib/libcudnn_ops_infer.so.8" ] && [ ! -L "/usr/local/lib/libcudnn_ops_infer.so.8" ]; then
-    ln -sf /usr/local/cuda-12.4/lib/libcudnn_ops_infer.so.8 /usr/local/lib/libcudnn_ops_infer.so.8
-    ln -sf /usr/local/cuda-12.4/lib/libcudnn_ops_train.so.8 /usr/local/lib/libcudnn_ops_train.so.8
-    log_step "✅ cuDNN symlinks created"
+
+# Find where cuDNN actually exists (could be in any CUDA version)
+CUDNN_SOURCE=""
+for cuda_dir in /usr/local/cuda-*/lib; do
+    if [ -f "\$cuda_dir/libcudnn_ops_infer.so.8" ]; then
+        CUDNN_SOURCE="\$cuda_dir"
+        break
+    fi
+done
+
+# Get the active CUDA version
+ACTIVE_CUDA=\$(readlink -f /usr/local/cuda)
+ACTIVE_CUDA_LIB="\$ACTIVE_CUDA/lib"
+
+if [ -n "\$CUDNN_SOURCE" ]; then
+    log_step "Found cuDNN in: \$CUDNN_SOURCE"
+    log_step "Active CUDA lib: \$ACTIVE_CUDA_LIB"
+    
+    # Create symlinks in both the active CUDA lib and /usr/local/lib
+    ln -sf \$CUDNN_SOURCE/libcudnn_ops_infer.so.8 \$ACTIVE_CUDA_LIB/libcudnn_ops_infer.so.8
+    ln -sf \$CUDNN_SOURCE/libcudnn_ops_train.so.8 \$ACTIVE_CUDA_LIB/libcudnn_ops_train.so.8
+    ln -sf \$CUDNN_SOURCE/libcudnn_ops_infer.so.8 /usr/local/lib/libcudnn_ops_infer.so.8
+    ln -sf \$CUDNN_SOURCE/libcudnn_ops_train.so.8 /usr/local/lib/libcudnn_ops_train.so.8
+    
+    log_step "✅ cuDNN symlinks created for active CUDA version"
 else
-    log_step "⚠️ cuDNN libraries not found or already linked"
+    log_step "⚠️ cuDNN libraries not found in any CUDA version"
 fi
 
 pip3 install --upgrade pip boto3 openai-whisper
