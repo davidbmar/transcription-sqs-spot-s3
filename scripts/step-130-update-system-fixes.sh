@@ -85,15 +85,8 @@ if aws iam get-policy --policy-arn "$POLICY_ARN" >/dev/null 2>&1; then
 }
 EOF
 
-    # Create new policy version
-    NEW_VERSION=$(aws iam create-policy-version \
-        --policy-arn "$POLICY_ARN" \
-        --policy-document file:///tmp/updated-worker-policy.json \
-        --set-as-default \
-        --query 'PolicyVersion.VersionId' \
-        --output text)
-    
-    echo -e "${GREEN}[OK]${NC} Policy updated to version: $NEW_VERSION"
+    # Skip policy update - already handled by step-010 with smart versioning
+    echo -e "${GREEN}[OK]${NC} IAM policy already updated by step-010 (skipping redundant update)"
     
     # Clean up temp file
     rm -f /tmp/updated-worker-policy.json
