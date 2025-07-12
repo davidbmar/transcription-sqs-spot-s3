@@ -180,4 +180,4 @@ echo -e "${GREEN}[INFO]${NC} EC2 configuration saved to $CONFIG_FILE"
 
 # Update setup status
 echo "STEP_101_COMPLETE=$(date)" >> .setup-status
-echo -e "${GREEN}[INFO]${NC} Step 025 marked as complete"
+echo -e "${GREEN}[INFO]${NC} Step 101 marked as complete"

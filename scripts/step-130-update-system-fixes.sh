@@ -47,14 +47,12 @@ if aws iam get-policy --policy-arn "$POLICY_ARN" >/dev/null 2>&1; then
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::transcription-metrics-*/*",
-        "arn:aws:s3:::aud-trsn-metrics-*/*",
+        "arn:aws:s3:::${METRICS_BUCKET}/*",
         "arn:aws:s3:::${AUDIO_BUCKET}/*",
-        "arn:aws:s3:::audio-transcription-*/*",
-        "arn:aws:s3:::transcription-metrics-*",
-        "arn:aws:s3:::aud-trsn-metrics-*",
+        "arn:aws:s3:::${QUEUE_PREFIX}-*/*",
+        "arn:aws:s3:::${METRICS_BUCKET}",
         "arn:aws:s3:::${AUDIO_BUCKET}",
-        "arn:aws:s3:::audio-transcription-*"
+        "arn:aws:s3:::${QUEUE_PREFIX}-*"
       ]
     },
     {
@@ -67,8 +65,7 @@ if aws iam get-policy --policy-arn "$POLICY_ARN" >/dev/null 2>&1; then
         "sqs:GetQueueUrl"
       ],
       "Resource": [
-        "arn:aws:sqs:${AWS_REGION}:${AWS_ACCOUNT_ID}:aud-trsn-*",
-        "arn:aws:sqs:${AWS_REGION}:${AWS_ACCOUNT_ID}:transcription-*"
+        "arn:aws:sqs:${AWS_REGION}:${AWS_ACCOUNT_ID}:${QUEUE_PREFIX}-*"
       ]
     },
     {
@@ -357,7 +354,7 @@ echo "3. Created comprehensive integration test script"
 echo "4. Added ffmpeg installation for webm audio support"
 echo
 echo "To test the complete workflow:"
-echo "  ./scripts/step-041-test-complete-workflow.sh"
+echo "  ./scripts/step-135-test-complete-workflow.sh"
 echo
 echo "To re-run IAM permissions with fixes:"
 echo "  ./scripts/step-010-setup-iam-permissions.sh"

@@ -103,9 +103,9 @@ cat > /tmp/transcription-user-policy.json << EOF
         "s3:DeleteBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::transcription-metrics-*",
-        "arn:aws:s3:::dbm-cf-2-web",
-        "arn:aws:s3:::audio-transcription-*"
+        "arn:aws:s3:::$METRICS_BUCKET",
+        "arn:aws:s3:::$AUDIO_BUCKET",
+        "arn:aws:s3:::$QUEUE_PREFIX-*"
       ]
     },
     {
@@ -120,9 +120,9 @@ cat > /tmp/transcription-user-policy.json << EOF
         "s3:AbortMultipartUpload"
       ],
       "Resource": [
-        "arn:aws:s3:::transcription-metrics-*/*",
-        "arn:aws:s3:::dbm-cf-2-web/*",
-        "arn:aws:s3:::audio-transcription-*/*"
+        "arn:aws:s3:::$METRICS_BUCKET/*",
+        "arn:aws:s3:::$AUDIO_BUCKET/*",
+        "arn:aws:s3:::$QUEUE_PREFIX-*/*"
       ]
     },
     {
@@ -484,7 +484,7 @@ echo "  Instance Profile: $INSTANCE_PROFILE_NAME"
 echo "  Worker Policy: $WORKER_POLICY_ARN"
 echo ""
 echo "Next steps:"
-echo "1. Run ./scripts/step-010-create-sqs_resources.sh to create SQS queues"
+echo "1. Run ./scripts/step-020-create-sqs-resources.sh to create SQS queues"
 echo "2. The IAM permissions are now configured for all transcription operations"
 echo ""
 

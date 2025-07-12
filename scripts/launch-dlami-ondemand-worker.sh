@@ -172,6 +172,11 @@ log_step "✅ Worker code downloaded"
 
 # PHASE 4: Worker Startup (immediate - no reboot needed!)
 log_step "🚀 PHASE 4: Starting worker (immediate startup - DLAMI advantage!)"
+
+# Ensure library path includes CUDA directories for cuDNN libraries
+export LD_LIBRARY_PATH="/usr/local/cuda/lib:/usr/local/cuda/lib64:\$LD_LIBRARY_PATH"
+log_step "📚 Updated LD_LIBRARY_PATH for cuDNN library access"
+
 nohup python3 transcription_worker.py \
     --queue-url "$QUEUE_URL" \
     --s3-bucket "$AUDIO_BUCKET" \

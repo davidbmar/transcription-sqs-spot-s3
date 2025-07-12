@@ -153,8 +153,8 @@ check_status "Queue resources summary file exists" \
     "Should be created by step-020-create-sqs-resources.sh"
 
 # Check 10: Setup status updated
-check_status "Step 021 marked complete" \
-    "grep -q 'STEP_021_COMPLETE=' .setup-status" \
+check_status "Step 020 marked complete" \
+    "grep -q 'STEP_020_COMPLETE=' .setup-status" \
     "Run ./scripts/step-020-create-sqs-resources.sh"
 
 # Summary
@@ -170,7 +170,7 @@ if [ $VALIDATION_PASSED -eq 1 ]; then
     echo "- Audio Bucket: s3://$AUDIO_BUCKET"
     echo
     echo "Next step: Configure EC2 settings"
-    echo "  ./scripts/step-025-setup-ec2-configuration.sh"
+    echo "  ./scripts/step-060-choose-deployment-path.sh"
 else
     echo -e "${RED}✗ SQS & S3 resources validation FAILED${NC}"
     echo

@@ -61,15 +61,15 @@ CONFIG = load_config()
 1. **Configuration**: `step-000-setup-configuration.sh` + `step-001-validate-configuration.sh`
 2. **IAM Setup**: `step-010-setup-iam-permissions.sh` + `step-011-validate-iam-permissions.sh`
 3. **SQS Resources**: `step-020-create-sqs-resources.sh` + `step-021-validate-sqs-resources.sh`
-4. **EC2 Config**: `step-025-setup-ec2-configuration.sh` + `step-026-validate-ec2-configuration.sh`
+4. **Deploy Path**: Ready for deployment path selection
 
 ### 🛤️ Deployment Path Selection:
 5. **Choose Path**: `step-060-choose-deployment-path.sh`
 
-### 🚀 Path A: Traditional EC2 (100-series):
-6. **EC2 Configuration**: `step-100-setup-ec2-configuration.sh` + `step-101-validate-ec2-configuration.sh`
+### 🚀 Path A: DLAMI Deployment (100-series):
+6. **EC2 Configuration**: `step-101-setup-ec2-configuration.sh` + `step-102-validate-ec2-configuration.sh`
 7. **Deploy Code**: `step-110-deploy-worker-code.sh` + `step-111-validate-worker-code.sh`
-8. **Launch Workers**: `step-120-launch-spot-worker.sh`
+8. **Launch DLAMI Workers**: `scripts/launch-dlami-ondemand-worker.sh`
 9. **Health Check**: `step-125-check-worker-health.sh`
 10. **System Fixes**: `step-130-update-system-fixes.sh`
 11. **End-to-End Test**: `step-135-test-complete-workflow.sh`

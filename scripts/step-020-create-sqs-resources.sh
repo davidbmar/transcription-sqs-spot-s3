@@ -136,7 +136,7 @@ cat > /tmp/queue-stats.json << EOF
   "job_count": 0,
   "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "queue_arn": "$QUEUE_ARN",
-  "initialized_by": "step-010-create-sqs_resources.sh"
+  "initialized_by": "step-020-create-sqs-resources.sh"
 }
 EOF
 
