@@ -156,67 +156,70 @@ if [ -n "$RUNNING_WORKERS" ]; then
         return 2  # Unknown state, continue monitoring
     }
     
-    # Check at 30 seconds
-    echo -e "${BLUE}[INFO]${NC} Waiting 30 seconds for initial worker startup..."
-    sleep 30
-    check_worker_health "30 seconds"
-    HEALTH_30=$?
+    # Quick health check - skip if worker already has high memory (model loaded)
+    echo -e "${BLUE}[INFO]${NC} Quick worker health check..."
+    check_worker_health "initial"
+    INITIAL_HEALTH=$?
     
-    if [ $HEALTH_30 -eq 1 ]; then
+    if [ $INITIAL_HEALTH -eq 1 ]; then
         exit 1  # Worker crashed
-    elif [ $HEALTH_30 -eq 0 ]; then
-        echo -e "${GREEN}[FAST STARTUP]${NC} Worker ready in 30 seconds! Proceeding to job processing..."
+    elif [ $INITIAL_HEALTH -eq 0 ]; then
+        echo -e "${GREEN}[READY]${NC} Worker already loaded and ready! Proceeding immediately..."
     else
-        # Check at 1 minute
-        echo -e "${BLUE}[INFO]${NC} Waiting additional 30 seconds (total: 1 minute)..."
-        sleep 30
-        check_worker_health "1 minute"
-        HEALTH_60=$?
+        echo -e "${BLUE}[INFO]${NC} Waiting 15 seconds for model loading..."
+        sleep 15
+        check_worker_health "15 seconds"
+        HEALTH_15=$?
         
-        if [ $HEALTH_60 -eq 1 ]; then
+        if [ $HEALTH_15 -eq 1 ]; then
             exit 1  # Worker crashed
-        elif [ $HEALTH_60 -eq 0 ]; then
-            echo -e "${GREEN}[READY]${NC} Worker fully loaded at 1 minute! Proceeding..."
+        elif [ $HEALTH_15 -eq 0 ]; then
+            echo -e "${GREEN}[READY]${NC} Worker loaded quickly! Proceeding..."
         else
-            # Check at 1:30
-            echo -e "${BLUE}[INFO]${NC} Waiting additional 30 seconds (total: 1:30)..."
-            sleep 30
-            check_worker_health "1 minute 30 seconds"
-            HEALTH_90=$?
-            
-            if [ $HEALTH_90 -eq 1 ]; then
-                exit 1  # Worker crashed
-            elif [ $HEALTH_90 -eq 0 ]; then
-                echo -e "${GREEN}[READY]${NC} Worker loaded at 1:30! Proceeding..."
-            else
-                echo -e "${YELLOW}[WARNING]${NC} Worker still loading after 1:30, but proceeding with test..."
-            fi
+            echo -e "${YELLOW}[INFO]${NC} Model still loading, but proceeding with test..."
         fi
     fi
     
     echo -e "${GREEN}[STEP 6B]${NC} Worker health checks completed! Starting job processing monitor..."
-    echo -e "${GREEN}[INFO]${NC} Waiting for job processing (max 5 minutes)..."
+    echo -e "${GREEN}[INFO]${NC} Waiting for job processing (max 3 minutes)..."
     
     # Wait for the job to be processed
-    TIMEOUT=300  # 5 minutes
-    START_TIME=$(date +%s)
+    TIMEOUT=180  # 3 minutes (should be plenty for a 5-second audio file)
+    JOB_START_TIME=$(date +%s)
+    START_TIME=$JOB_START_TIME
     
     while [ $(($(date +%s) - START_TIME)) -lt $TIMEOUT ]; do
         # Check if transcript exists
         if aws s3 ls "$TEST_S3_OUTPUT" >/dev/null 2>&1; then
+            JOB_END_TIME=$(date +%s)
+            PROCESSING_TIME=$((JOB_END_TIME - JOB_START_TIME))
+            
             echo -e "${GREEN}[OK]${NC} Transcript created successfully!"
+            echo -e "${GREEN}[TIMING]${NC} Job completed in ${PROCESSING_TIME} seconds"
             echo -e "${GREEN}[INFO]${NC} Transcript location: $TEST_S3_OUTPUT"
             
             # Download and show transcript
-            echo -e "${GREEN}[STEP 7]${NC} Downloading transcript..."
+            echo -e "${GREEN}[STEP 7]${NC} Downloading and displaying transcript..."
             aws s3 cp "$TEST_S3_OUTPUT" /tmp/test-transcript.json
             
-            echo -e "${GREEN}[INFO]${NC} Transcript content:"
-            jq . /tmp/test-transcript.json || cat /tmp/test-transcript.json
+            echo -e "${BLUE}==================== TRANSCRIPT CONTENT ====================${NC}"
+            if command -v jq >/dev/null 2>&1; then
+                # Pretty print with jq if available
+                jq -r '.segments[]? | "[\(.start | floor)]s-[\(.end | floor)]s: \(.text)"' /tmp/test-transcript.json 2>/dev/null || {
+                    echo -e "${YELLOW}[INFO]${NC} Raw transcript format:"
+                    jq . /tmp/test-transcript.json 2>/dev/null || cat /tmp/test-transcript.json
+                }
+            else
+                # Fallback to cat if jq not available
+                echo -e "${YELLOW}[INFO]${NC} Raw transcript content:"
+                cat /tmp/test-transcript.json
+            fi
+            echo -e "${BLUE}=============================================================${NC}"
             
             echo
             echo -e "${GREEN}✓ Integration test PASSED${NC}"
-            echo -e "${GREEN}✓ Complete workflow working correctly${NC}"
+            echo -e "${GREEN}✓ GPU transcription working correctly in ${PROCESSING_TIME} seconds${NC}"
+            echo -e "${GREEN}✓ Complete workflow functional${NC}"
             exit 0
         fi
         
