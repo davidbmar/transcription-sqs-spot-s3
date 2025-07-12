@@ -26,10 +26,10 @@ fi
 echo "🔍 Checking prerequisites..."
 
 # Check if previous step completed
-if grep -q "step-111-deploy-worker-code: completed" .setup-status 2>/dev/null; then
-    echo "✅ Step 111 completed successfully"
+if grep -q "step-110-deploy-worker-code: completed" .setup-status 2>/dev/null; then
+    echo "✅ Step 110 completed successfully"
 else
-    echo "❌ Error: Step 110 not completed. Run step-111-deploy-worker-code.sh first."
+    echo "❌ Error: Step 110 not completed. Run step-110-deploy-worker-code.sh first."
     exit 1
 fi
 
