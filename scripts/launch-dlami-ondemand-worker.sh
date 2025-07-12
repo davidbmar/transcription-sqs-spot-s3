@@ -183,9 +183,19 @@ log_step "📥 PHASE 3: Installing Python dependencies and downloading worker co
 mkdir -p /opt/transcription-worker
 cd /opt/transcription-worker
 
-# Install specific PyTorch version compatible with cuDNN 9.x
+# Install PyTorch compatible with DLAMI's cuDNN 8 (Pathway A from expert guide)
 pip3 install --upgrade pip boto3 
-pip3 install torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu121
+
+# Force remove any existing PyTorch to avoid "Two Runtimes" conflict
+pip3 uninstall -y torch torchvision torchaudio 2>/dev/null || true
+
+# Install PyTorch 2.1.2 with CUDA 12.1 - avoids bundled cuDNN 9 wheels
+pip3 install torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu121
+
+# Pin CTranslate2 to 4.4.0 (last version compatible with cuDNN 8)
+pip3 install ctranslate2==4.4.0
+
+# Install whisper packages
 pip3 install openai-whisper
 pip3 install git+https://github.com/m-bain/whisperx.git
 log_step "✅ Dependencies installed"
