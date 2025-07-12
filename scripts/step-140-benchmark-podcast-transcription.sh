@@ -73,7 +73,15 @@ QUEUE_DEPTH=$(aws sqs get-queue-attributes \
     --output text)
 
 if [ "$QUEUE_DEPTH" -gt 0 ]; then
-    echo -e "${YELLOW}[WARNING]${NC} Queue has $QUEUE_DEPTH messages. Consider purging for clean benchmark."
+    echo -e "${YELLOW}[WARNING]${NC} Queue has $QUEUE_DEPTH messages. This may affect benchmark timing."
+    echo -e "${CYAN}Do you want to purge the queue for a clean benchmark? (y/n) [n]: ${NC}"
+    read -r purge_queue
+    if [ "$purge_queue" = "y" ] || [ "$purge_queue" = "Y" ]; then
+        echo -e "${BLUE}[INFO]${NC} Purging queue..."
+        aws sqs purge-queue --region "$AWS_REGION" --queue-url "$QUEUE_URL"
+        echo -e "${GREEN}[OK]${NC} Queue purged"
+        sleep 5  # Brief pause after purge
+    fi
 fi
 
 # Submit job and record start time
@@ -172,9 +180,9 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     aws sqs get-queue-attributes \
         --region "$AWS_REGION" \
         --queue-url "$QUEUE_URL" \
-        --attribute-names ApproximateNumberOfMessages,ApproximateNumberOfMessagesNotVisible \
+        --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible \
         --query 'Attributes.[ApproximateNumberOfMessages,ApproximateNumberOfMessagesNotVisible]' \
-        --output text | tr '\t' '/'
+        --output text | tr '\t' '/' 2>/dev/null || echo "Queue status unavailable"
     
     # Check worker progress every minute
     if [ $((ELAPSED % 60)) -eq 0 ] && [ $ELAPSED -gt 0 ]; then
