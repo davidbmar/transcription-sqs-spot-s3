@@ -64,18 +64,29 @@ class GPUOptimizedTranscriber:
         self.alignment_model = None
         self.metadata = None
 
-        # Enable GPU optimizations
+        # Enable GPU optimizations and cuDNN compatibility fixes
         if self.device == "cuda" and torch.cuda.is_available():
-            # Enable TF32 for A100/3090 GPUs
-            torch.backends.cuda.matmul.allow_tf32 = True
-            torch.backends.cudnn.benchmark = True
-            torch.backends.cudnn.deterministic = False
-            logger.info("✅ GPU optimizations enabled: TF32, cuDNN benchmark")
+            try:
+                # Test CUDA functionality first
+                test_tensor = torch.zeros(1).cuda()
+                del test_tensor
+                
+                # Apply cuDNN fixes from WhisperX GitHub issues
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True  # Fix for cuDNN compatibility
+                torch.backends.cudnn.benchmark = True
+                torch.backends.cudnn.deterministic = False
+                
+                logger.info("✅ GPU optimizations enabled: TF32, cuDNN benchmark, cuDNN TF32 fix")
+            except Exception as e:
+                logger.warning(f"⚠️ GPU test failed: {e}")
+                logger.warning("🔄 Falling back to CPU mode for reliability")
+                self.device = "cpu"
 
         logger.info(f"🚀 GPU-OPTIMIZED TRANSCRIBER: model={model_name}, device={self.device}, batch_size={batch_size}")
 
     def load_model(self):
-        """Load the WhisperX model with GPU optimizations"""
+        """Load the WhisperX model with GPU optimizations and cuDNN error handling"""
         if self.model is not None:
             return
 
@@ -94,7 +105,7 @@ class GPUOptimizedTranscriber:
             )
             
             logger.info(f"✅ MODEL LOADED: {self.model_name} with {compute_type} compute")
-
+            
             # Load alignment model
             logger.info("🔧 Loading alignment model...")
             self.alignment_model, self.metadata = whisperx.load_align_model(
@@ -103,18 +114,66 @@ class GPUOptimizedTranscriber:
             )
             logger.info("✅ All models loaded and ready")
 
-            # Warm up the model with a dummy input
+            # Warm up the model with a dummy input (with cuDNN error handling)
             if self.device == "cuda":
                 logger.info("🔥 Warming up GPU with dummy transcription...")
-                dummy_audio = np.random.randn(16000).astype(np.float32)  # 1 second
-                _ = self.model.transcribe(dummy_audio, batch_size=self.batch_size)
-                torch.cuda.synchronize()
-                logger.info("✅ GPU warmup complete")
-
+                try:
+                    dummy_audio = np.random.randn(16000).astype(np.float32)  # 1 second
+                    _ = self.model.transcribe(dummy_audio, batch_size=self.batch_size)
+                    torch.cuda.synchronize()
+                    logger.info("✅ GPU warmup complete")
+                except Exception as warmup_error:
+                    logger.warning(f"⚠️ GPU warmup failed: {warmup_error}")
+                    error_str = str(warmup_error).lower()
+                    if "libcudnn" in error_str or "cudnn" in error_str:
+                        logger.warning("🔄 cuDNN error during warmup - switching to CPU mode")
+                        # Reload models in CPU mode
+                        self.device = "cpu"
+                        self.model = whisperx.load_model(
+                            self.model_name, 
+                            self.device, 
+                            compute_type="float32",
+                            download_root=None
+                        )
+                        self.alignment_model, self.metadata = whisperx.load_align_model(
+                            language_code="en",
+                            device=self.device
+                        )
+                        logger.info("✅ Successfully switched to CPU mode after cuDNN warmup failure")
+                    else:
+                        logger.warning("⚠️ GPU warmup failed but continuing with loaded models")
+            
         except Exception as e:
-            error_msg = f"Failed to load model: {str(e)}"
-            logger.error(error_msg)
-            raise ModelLoadError(error_msg)
+            error_str = str(e).lower()
+            if "libcudnn" in error_str or "cudnn" in error_str:
+                logger.warning(f"⚠️ cuDNN library error detected: {e}")
+                logger.warning("🔄 Attempting CPU fallback due to cuDNN compatibility issue")
+                
+                # Retry with CPU mode
+                self.device = "cpu"
+                compute_type = "float32"
+                
+                try:
+                    self.model = whisperx.load_model(
+                        self.model_name, 
+                        self.device, 
+                        compute_type=compute_type,
+                        download_root=None
+                    )
+                    
+                    # Load alignment model for CPU
+                    self.alignment_model, self.metadata = whisperx.load_align_model(
+                        language_code="en",
+                        device=self.device
+                    )
+                    
+                    logger.info(f"✅ MODEL LOADED: {self.model_name} with {compute_type} compute (CPU fallback)")
+                    logger.info("✅ CPU fallback successful - worker ready for transcription")
+                    
+                except Exception as cpu_error:
+                    raise ModelLoadError(f"Failed to load model even with CPU fallback: {cpu_error}")
+            else:
+                raise ModelLoadError(f"Failed to load model: {e}")
 
     def convert_webm_to_wav(self, input_file):
         """Convert webm file to wav format using ffmpeg"""
