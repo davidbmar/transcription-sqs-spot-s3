@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# step-030-deploy-worker-code.sh - Deploy worker code to S3 for reliable access
+# step-110-deploy-worker-code.sh - Deploy worker code to S3 for reliable access
 # This eliminates external GitHub dependencies and ensures code availability
 
 set -e
 
 echo "=========================================="
-echo "STEP 040: Deploy Worker Code to S3"
+echo "STEP 110: Deploy Worker Code to S3"
 echo "=========================================="
 echo ""
 echo "This step uploads all worker code to S3 for reliable deployment"
@@ -219,9 +219,9 @@ echo "  aws s3 sync s3://${METRICS_BUCKET}/${S3_CODE_PREFIX}/latest/ /opt/transc
 echo ""
 
 # Update setup status
-echo "step-030-deploy-worker-code: completed" >> .setup-status
+echo "step-110-deploy-worker-code: completed" >> .setup-status
 
-echo "✅ Step 030 completed successfully!"
+echo "✅ Step 110 completed successfully!"
 
 # Auto-detect and show next step
 if [ -f "$(dirname "$0")/next-step-helper.sh" ]; then

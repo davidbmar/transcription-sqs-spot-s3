@@ -16,7 +16,7 @@ else
 fi
 
 # Check if step-200 was completed
-if ! grep -q "step-200-completed" .setup-status 2>/dev/null; then
+if ! grep -q "step-302-completed" .setup-status 2>/dev/null; then
     echo "❌ Error: step-200-setup-docker-prerequisites.sh must be run first."
     exit 1
 fi
@@ -153,7 +153,7 @@ if [ "$VALIDATION_PASSED" = true ]; then
     echo ""
     
     # Update setup status
-    echo "step-201-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
+    echo "step-302-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
     echo "docker-validation-passed=true" >> .setup-status
     
     # Create summary file

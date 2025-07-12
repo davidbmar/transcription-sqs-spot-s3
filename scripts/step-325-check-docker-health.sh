@@ -16,7 +16,7 @@ else
 fi
 
 # Check if Docker worker was launched
-if ! grep -q "step-220-completed" .setup-status 2>/dev/null; then
+if ! grep -q "step-325-completed" .setup-status 2>/dev/null; then
     echo "❌ Error: step-220-launch-docker-worker.sh must be run first."
     exit 1
 fi
@@ -305,6 +305,6 @@ rm -f /tmp/container_info /tmp/health_response
 
 # Update status
 echo ""
-echo "step-225-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
+echo "step-325-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
 
 exit $OVERALL_HEALTH

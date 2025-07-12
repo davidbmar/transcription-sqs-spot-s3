@@ -25,7 +25,7 @@
 # SEQUENCE:
 # step-201-setup-ec2-configuration.sh
 # step-202-validate-ec2-configuration.sh
-# step-210-deploy-worker-code.sh
+# step-200-deploy-worker-code.sh
 # step-211-validate-worker-code.sh
 # step-220-launch-ubuntu-spot-worker.sh
 # step-225-check-worker-health.sh

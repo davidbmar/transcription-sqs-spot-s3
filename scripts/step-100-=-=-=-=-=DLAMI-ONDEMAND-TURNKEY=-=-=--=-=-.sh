@@ -21,7 +21,7 @@
 # SEQUENCE:
 # step-101-setup-ec2-configuration.sh
 # step-102-validate-ec2-configuration.sh  
-# step-110-deploy-worker-code.sh
+# step-100-deploy-worker-code.sh
 # step-111-validate-worker-code.sh
 # step-120-launch-dlami-ondemand-worker.sh
 # step-125-check-worker-health.sh

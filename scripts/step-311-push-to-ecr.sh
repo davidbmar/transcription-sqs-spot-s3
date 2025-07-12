@@ -16,7 +16,7 @@ else
 fi
 
 # Check if previous steps completed
-if ! grep -q "step-210-completed" .setup-status 2>/dev/null; then
+if ! grep -q "step-311-completed" .setup-status 2>/dev/null; then
     echo "❌ Error: step-210-build-worker-image.sh must be run first."
     exit 1
 fi
@@ -177,7 +177,7 @@ echo "  2. Or manually: docker run --gpus all $ECR_REPOSITORY_URI:latest"
 echo ""
 
 # Update setup status
-echo "step-211-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
+echo "step-311-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
 echo "docker-image-pushed=true" >> .setup-status
 echo "ecr-image-uri=$ECR_REPOSITORY_URI:latest" >> .setup-status
 

@@ -83,8 +83,8 @@ if [ -f ".env" ]; then
         "Setup status file should be created by step-000"
     
     if [ -f ".setup-status" ]; then
-        check_status "Step 000 marked complete in setup status" \
-            "grep -q 'STEP_000_COMPLETE=' .setup-status" \
+        check_status "Step 001 marked complete in setup status" \
+            "grep -q 'STEP_001_COMPLETE=' .setup-status" \
             "Run step-000-setup-configuration.sh again"
     fi
 fi

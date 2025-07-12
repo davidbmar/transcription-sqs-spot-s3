@@ -16,7 +16,7 @@ else
 fi
 
 # Check if previous steps completed
-if ! grep -q "step-201-completed" .setup-status 2>/dev/null; then
+if ! grep -q "step-310-completed" .setup-status 2>/dev/null; then
     echo "❌ Error: step-201-validate-docker-setup.sh must be run first."
     exit 1
 fi
@@ -316,6 +316,6 @@ echo "  2. Then: ./scripts/step-220-launch-docker-worker.sh"
 echo ""
 
 # Update setup status
-echo "step-210-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
+echo "step-310-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
 echo "docker-image-built=true" >> .setup-status
 echo "docker-image-name=${ECR_REPOSITORY_URI}:latest" >> .setup-status

@@ -16,7 +16,7 @@ else
 fi
 
 # Check if previous steps completed
-if ! grep -q "step-211-completed" .setup-status 2>/dev/null; then
+if ! grep -q "step-320-completed" .setup-status 2>/dev/null; then
     echo "❌ Error: step-211-push-to-ecr.sh must be run first."
     exit 1
 fi
@@ -373,6 +373,6 @@ echo "  ssh -i $KEY_NAME.pem ubuntu@$PUBLIC_IP 'sudo tail -f /var/log/docker-wor
 echo ""
 
 # Update setup status
-echo "step-220-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
+echo "step-320-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
 echo "docker-worker-instance-id=$INSTANCE_ID" >> .setup-status
 echo "docker-worker-public-ip=$PUBLIC_IP" >> .setup-status

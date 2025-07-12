@@ -352,7 +352,7 @@ fi
 
 # Fix 5: Update setup status
 echo -e "${GREEN}[STEP 5]${NC} Updating setup status..."
-echo "STEP_040_COMPLETE=$(date)" >> .setup-status
+echo "STEP_130_COMPLETE=$(date)" >> .setup-status
 
 echo
 echo -e "${GREEN}[INFO]${NC} === System Fixes Applied Successfully ==="

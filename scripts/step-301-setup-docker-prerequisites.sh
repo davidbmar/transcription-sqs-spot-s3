@@ -245,5 +245,5 @@ echo "  2. Then: ./scripts/step-210-build-worker-image.sh"
 echo ""
 
 # Update setup status
-echo "step-200-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
+echo "step-301-completed=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .setup-status
 echo "ecr-repository-uri=$ECR_REPOSITORY_URI" >> .setup-status

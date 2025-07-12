@@ -153,8 +153,8 @@ check_status "Queue resources summary file exists" \
     "Should be created by step-020-create-sqs-resources.sh"
 
 # Check 10: Setup status updated
-check_status "Step 020 marked complete" \
-    "grep -q 'STEP_020_COMPLETE=' .setup-status" \
+check_status "Step 021 marked complete" \
+    "grep -q 'STEP_021_COMPLETE=' .setup-status" \
     "Run ./scripts/step-020-create-sqs-resources.sh"
 
 # Summary
