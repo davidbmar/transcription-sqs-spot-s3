@@ -350,16 +350,12 @@ cat > /tmp/transcription-worker-policy.json << EOF
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::transcription-metrics-*/*",
-        "arn:aws:s3:::aud-trsn-metrics-*/*",
-        "arn:aws:s3:::dbm-aud-tr-*/*",
-        "arn:aws:s3:::${AUDIO_BUCKET}/*",
-        "arn:aws:s3:::audio-transcription-*/*",
-        "arn:aws:s3:::transcription-metrics-*",
-        "arn:aws:s3:::aud-trsn-metrics-*",
-        "arn:aws:s3:::dbm-aud-tr-*",
-        "arn:aws:s3:::${AUDIO_BUCKET}",
-        "arn:aws:s3:::audio-transcription-*"
+        "arn:aws:s3:::$METRICS_BUCKET/*",
+        "arn:aws:s3:::$AUDIO_BUCKET/*",
+        "arn:aws:s3:::$QUEUE_PREFIX-*/*",
+        "arn:aws:s3:::$METRICS_BUCKET",
+        "arn:aws:s3:::$AUDIO_BUCKET",
+        "arn:aws:s3:::$QUEUE_PREFIX-*"
       ]
     },
     {
@@ -372,10 +368,7 @@ cat > /tmp/transcription-worker-policy.json << EOF
         "sqs:ChangeMessageVisibility"
       ],
       "Resource": [
-        "arn:aws:sqs:*:$ACCOUNT_ID:aud-trsn-*",
-        "arn:aws:sqs:*:$ACCOUNT_ID:dbm-aud-tr-*",
-        "arn:aws:sqs:*:$ACCOUNT_ID:transcription-*",
-        "arn:aws:sqs:*:$ACCOUNT_ID:audio-transcription-*"
+        "arn:aws:sqs:*:$ACCOUNT_ID:$QUEUE_PREFIX-*"
       ]
     },
     {
