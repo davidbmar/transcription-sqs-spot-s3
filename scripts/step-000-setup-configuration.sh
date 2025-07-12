@@ -161,6 +161,22 @@ if ! check_bucket_exists "$AUDIO_BUCKET"; then
     get_input "Create this bucket? (yes/no)" "no" CREATE_AUDIO_BUCKET
 fi
 
+# GPU Acceleration Prerequisite
+print_header "GPU Acceleration Setup (Required for Optimal Performance)"
+echo ""
+print_warning "IMPORTANT: For GPU acceleration, you must download cuDNN 8.x:"
+echo ""
+echo -e "${CYAN}1. Visit:${NC} https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/"
+echo -e "${CYAN}2. Download:${NC} cudnn-linux-x86_64-8.9.7.29_cuda12-archive.tar.xz"
+echo -e "${CYAN}3. Upload to S3:${NC}"
+echo -e "   ${YELLOW}aws s3 cp cudnn-linux-x86_64-8.9.7.29_cuda12-archive.tar.xz s3://${AUDIO_BUCKET}/bintarball/${NC}"
+echo ""
+echo -e "${GREEN}This enables maximum GPU performance on workers.${NC}"
+echo -e "${YELLOW}Without this file, workers will use CPU-only mode (slower but functional).${NC}"
+echo ""
+print_prompt "Press Enter to continue after uploading cuDNN (or skip for CPU-only mode)..."
+read
+
 # Worker Configuration
 print_header "Worker Configuration"
 

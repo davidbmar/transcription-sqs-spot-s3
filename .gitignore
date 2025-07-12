@@ -49,3 +49,8 @@ health_check.txt
 
 # Logs
 *.log
+
+# Large binary files
+bin/*.tar.xz
+bin/*.tar.gz
+bin/*.deb

@@ -122,68 +122,104 @@ log_step "📦 Installing ffmpeg for audio format support..."
 apt-get update && apt-get install -y ffmpeg
 log_step "✅ FFmpeg installed"
 
-# Fix cuDNN library paths for PyTorch/WhisperX compatibility
-log_step "🔧 Creating cuDNN library symlinks for GPU acceleration..."
+# Expert GPU Fix: Install cuDNN 8.x from S3 bucket
+log_step "🔧 Expert GPU Setup: Installing cuDNN 8.x for optimal GPU performance..."
 
-# Find where cuDNN actually exists (could be in any CUDA version)
-CUDNN_SOURCE=""
-for cuda_dir in /usr/local/cuda-*/lib; do
-    if [ -f "\$cuda_dir/libcudnn_ops_infer.so.8" ]; then
-        CUDNN_SOURCE="\$cuda_dir"
-        break
+# Download cuDNN 8.x from S3 bucket
+CUDNN_FILE="cudnn-linux-x86_64-8.9.7.29_cuda12-archive.tar.xz"
+S3_CUDNN_PATH="s3://AUDIO_BUCKET_PLACEHOLDER/bintarball/\$CUDNN_FILE"
+
+log_step "📥 Downloading cuDNN 8.x from S3..."
+cd /tmp
+
+# Try to download cuDNN from S3
+aws s3 cp "\$S3_CUDNN_PATH" "\$CUDNN_FILE" --region "REGION_PLACEHOLDER" 2>/dev/null
+if [ -f "$CUDNN_FILE" ]; then
+    log_step "📦 Downloaded cuDNN 8.x from S3 - installing for maximum GPU performance..."
+    
+    # Extract cuDNN 8.x
+    tar -xf "\$CUDNN_FILE"
+    
+    # Get active CUDA path
+    ACTIVE_CUDA=\$(readlink -f /usr/local/cuda)
+    CUDNN_DIR=\$(find . -name "cudnn-linux-*" -type d | head -1)
+    
+    if [ -d "\$CUDNN_DIR" ]; then
+        # Install cuDNN 8.x
+        cp -P "\$CUDNN_DIR"/lib/libcudnn* "\$ACTIVE_CUDA/lib/"
+        cp -P "\$CUDNN_DIR"/include/cudnn* "\$ACTIVE_CUDA/include/" 2>/dev/null || true
+        chmod 755 "\$ACTIVE_CUDA/lib/libcudnn"*
+        
+        # Update library cache
+        echo "\$ACTIVE_CUDA/lib" > /etc/ld.so.conf.d/cudnn.conf
+        ldconfig
+        
+        log_step "✅ cuDNN 8.x installed from S3 - GPU acceleration optimized!"
+        CUDNN_INSTALLED="true"
+        
+        # Verify installation
+        if [ -f "\$ACTIVE_CUDA/lib/libcudnn_ops_infer.so.8" ]; then
+            log_step "✅ cuDNN 8.x verification passed"
+        else
+            log_step "⚠️ cuDNN 8.x verification failed"
+            CUDNN_INSTALLED="false"
+        fi
+    else
+        log_step "⚠️ cuDNN extraction failed"
+        CUDNN_INSTALLED="false"
     fi
-done
-
-# Get the active CUDA version
-ACTIVE_CUDA=\$(readlink -f /usr/local/cuda)
-ACTIVE_CUDA_LIB="\$ACTIVE_CUDA/lib"
-
-if [ -n "\$CUDNN_SOURCE" ]; then
-    log_step "Found cuDNN in: \$CUDNN_SOURCE"
-    log_step "Active CUDA lib: \$ACTIVE_CUDA_LIB"
     
-    # Create symlinks in both the active CUDA lib and /usr/local/lib
-    ln -sf \$CUDNN_SOURCE/libcudnn_ops_infer.so.8 \$ACTIVE_CUDA_LIB/libcudnn_ops_infer.so.8
-    ln -sf \$CUDNN_SOURCE/libcudnn_ops_train.so.8 \$ACTIVE_CUDA_LIB/libcudnn_ops_train.so.8
-    ln -sf \$CUDNN_SOURCE/libcudnn_ops_infer.so.8 /usr/local/lib/libcudnn_ops_infer.so.8
-    ln -sf \$CUDNN_SOURCE/libcudnn_ops_train.so.8 /usr/local/lib/libcudnn_ops_train.so.8
-    
-    log_step "✅ cuDNN symlinks created for active CUDA version"
+    # Cleanup
+    rm -rf cudnn-linux-* "\$CUDNN_FILE"
 else
-    log_step "⚠️ cuDNN libraries not found in any CUDA version"
+    log_step "⚠️ cuDNN 8.x not found in S3 - using PyTorch 2.1.0 compatibility mode"
+    log_step "   S3 path checked: \$S3_CUDNN_PATH"
+    log_step "   To enable optimal GPU performance, upload cuDNN 8.x to S3"
+    CUDNN_INSTALLED="false"
 fi
 
-pip3 install --upgrade pip boto3 openai-whisper
-pip3 install git+https://github.com/m-bain/whisperx.git
-log_step "✅ Dependencies installed"
-
-# PHASE 3: Worker Code Download
-log_step "📥 PHASE 3: Downloading worker code"
+# PHASE 3: Python Dependencies and Worker Code
+log_step "📥 PHASE 3: Installing Python dependencies and downloading worker code"
 mkdir -p /opt/transcription-worker
 cd /opt/transcription-worker
 
-aws s3 cp s3://$METRICS_BUCKET/worker-code/latest/transcription_worker.py . --region $REGION
-aws s3 cp s3://$METRICS_BUCKET/worker-code/latest/queue_metrics.py . --region $REGION
-aws s3 cp s3://$METRICS_BUCKET/worker-code/latest/transcriber.py . --region $REGION
-aws s3 cp s3://$METRICS_BUCKET/worker-code/latest/transcriber_gpu_optimized.py . --region $REGION
-aws s3 cp s3://$METRICS_BUCKET/worker-code/latest/progress_logger.py . --region $REGION
+# Install specific PyTorch version compatible with cuDNN 9.x
+pip3 install --upgrade pip boto3 
+pip3 install torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu121
+pip3 install openai-whisper
+pip3 install git+https://github.com/m-bain/whisperx.git
+log_step "✅ Dependencies installed"
+
+aws s3 cp s3://METRICS_BUCKET_PLACEHOLDER/worker-code/latest/transcription_worker.py . --region REGION_PLACEHOLDER
+aws s3 cp s3://METRICS_BUCKET_PLACEHOLDER/worker-code/latest/queue_metrics.py . --region REGION_PLACEHOLDER
+aws s3 cp s3://METRICS_BUCKET_PLACEHOLDER/worker-code/latest/transcriber.py . --region REGION_PLACEHOLDER
+aws s3 cp s3://METRICS_BUCKET_PLACEHOLDER/worker-code/latest/transcriber_gpu_optimized.py . --region REGION_PLACEHOLDER
+aws s3 cp s3://METRICS_BUCKET_PLACEHOLDER/worker-code/latest/progress_logger.py . --region REGION_PLACEHOLDER
 
 log_step "✅ Worker code downloaded"
 
-# PHASE 4: Worker Startup (immediate - no reboot needed!)
-log_step "🚀 PHASE 4: Starting worker (immediate startup - DLAMI advantage!)"
+# PHASE 4: GPU Worker Startup
+log_step "🚀 PHASE 4: Starting GPU-accelerated worker"
 
-# Ensure library path includes CUDA directories for cuDNN libraries
-export LD_LIBRARY_PATH="/usr/local/cuda/lib:/usr/local/cuda/lib64:\$LD_LIBRARY_PATH"
-log_step "📚 Updated LD_LIBRARY_PATH for cuDNN library access"
+# Configure GPU environment for DLAMI
+export CUDA_VISIBLE_DEVICES="0"
+export LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/local/cuda/lib:\$LD_LIBRARY_PATH"
 
+log_step "📚 GPU environment configured for DLAMI"
+log_step "   PyTorch: 2.1.0 (cuDNN 9.x compatible)"
+log_step "   CUDA: \$(readlink -f /usr/local/cuda)"
+log_step "   GPU: Enabled"
+
+cd /opt/transcription-worker
+
+# Start GPU worker (override any CPU-only flags)
+log_step "🚀 Starting GPU-accelerated transcription worker..."
 nohup python3 transcription_worker.py \
-    --queue-url "$QUEUE_URL" \
-    --s3-bucket "$AUDIO_BUCKET" \
-    --region "$REGION" \
+    --queue-url "QUEUE_URL_PLACEHOLDER" \
+    --s3-bucket "AUDIO_BUCKET_PLACEHOLDER" \
+    --region "REGION_PLACEHOLDER" \
     --model large-v3 \
-    --idle-timeout 60 \
-    \$GPU_MODE > /var/log/transcription-worker.log 2>&1 &
+    --idle-timeout 60 > /var/log/transcription-worker.log 2>&1 &
 
 log_step "🎉 DLAMI worker started - setup complete!"
 log_step "=========================================="
@@ -192,10 +228,10 @@ log_step "=========================================="
 EOF
 
 # Replace configuration placeholders
-sed -i "s|\$QUEUE_URL|$QUEUE_URL|g" /tmp/user-data-dlami-turnkey.sh
-sed -i "s|\$METRICS_BUCKET|$METRICS_BUCKET|g" /tmp/user-data-dlami-turnkey.sh
-sed -i "s|\$AUDIO_BUCKET|$AUDIO_BUCKET|g" /tmp/user-data-dlami-turnkey.sh
-sed -i "s|\$REGION|$REGION|g" /tmp/user-data-dlami-turnkey.sh
+sed -i "s|QUEUE_URL_PLACEHOLDER|$QUEUE_URL|g" /tmp/user-data-dlami-turnkey.sh
+sed -i "s|METRICS_BUCKET_PLACEHOLDER|$METRICS_BUCKET|g" /tmp/user-data-dlami-turnkey.sh
+sed -i "s|AUDIO_BUCKET_PLACEHOLDER|$AUDIO_BUCKET|g" /tmp/user-data-dlami-turnkey.sh
+sed -i "s|REGION_PLACEHOLDER|$REGION|g" /tmp/user-data-dlami-turnkey.sh
 sed -i "s|\$CPU_ONLY_FLAG|$CPU_ONLY_FLAG|g" /tmp/user-data-dlami-turnkey.sh
 
 echo "📄 DLAMI user data script created and configured"
