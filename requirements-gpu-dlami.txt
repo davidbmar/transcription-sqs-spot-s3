@@ -1,0 +1,46 @@
+# GPU-optimized requirements for DLAMI with cuDNN 8.x compatibility
+# Frozen versions that are known to work together without cuDNN conflicts
+# Generated: 2025-07-12
+
+# Core infrastructure
+pip==24.0
+boto3==1.34.0
+
+# PyTorch stack - MUST use --no-deps and specific index URL
+# Install with: pip install --no-deps --index-url https://download.pytorch.org/whl/cu121 torch==2.1.2
+torch==2.1.2+cu121
+torchvision==0.16.2+cu121
+torchaudio==2.1.2+cu121
+
+# CTranslate2 - Last version compatible with cuDNN 8.x
+# Install with: pip install --no-deps ctranslate2==4.4.0
+ctranslate2==4.4.0
+
+# Core scientific/audio libraries
+numpy==1.24.4
+scipy==1.11.4
+librosa==0.10.1
+soundfile==0.12.1
+
+# Whisper core
+openai-whisper==20231117
+
+# WhisperX - Compatible with PyTorch <2.4.0
+# Install with: pip install --no-deps whisperx==3.1.6
+whisperx==3.1.6
+
+# WhisperX dependencies
+faster-whisper==1.0.0
+transformers==4.38.0
+huggingface-hub==0.20.0
+pandas==2.0.3
+av==11.0.0
+pyannote.audio==3.1.1
+omegaconf==2.3.0
+
+# Installation order is critical:
+# 1. Upgrade pip and boto3
+# 2. Uninstall any existing torch/torchvision/torchaudio
+# 3. Install PyTorch stack with --no-deps
+# 4. Install CTranslate2 with --no-deps
+# 5. Install remaining dependencies in order listed

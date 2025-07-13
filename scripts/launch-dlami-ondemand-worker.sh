@@ -183,21 +183,33 @@ log_step "📥 PHASE 3: Installing Python dependencies and downloading worker co
 mkdir -p /opt/transcription-worker
 cd /opt/transcription-worker
 
-# Install PyTorch compatible with DLAMI's cuDNN 8 (Pathway A from expert guide)
-pip3 install --upgrade pip boto3 
+# Docker-inspired PyTorch installation to prevent version conflicts
+# Pin pip and boto3 to stable versions
+pip3 install --upgrade pip==24.0 boto3==1.34.0
 
 # Force remove any existing PyTorch to avoid "Two Runtimes" conflict
-pip3 uninstall -y torch torchvision torchaudio 2>/dev/null || true
+pip3 uninstall -y torch torchvision torchaudio triton 2>/dev/null || true
 
-# Install PyTorch 2.1.2 with CUDA 12.1 - avoids bundled cuDNN 9 wheels
-pip3 install torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu121
+# CRITICAL: Use --no-deps to prevent pip from overriding our version choice
+# Install PyTorch 2.1.2 with CUDA 12.1 using --no-deps (inspired by successful Docker approach)
+pip3 install --no-deps --index-url https://download.pytorch.org/whl/cu121 torch==2.1.2
+pip3 install --no-deps --index-url https://download.pytorch.org/whl/cu121 torchvision==0.16.2
+pip3 install --no-deps --index-url https://download.pytorch.org/whl/cu121 torchaudio==2.1.2
 
-# Pin CTranslate2 to 4.4.0 (last version compatible with cuDNN 8)
-pip3 install ctranslate2==4.4.0
+# Pin CTranslate2 to 4.4.0 (last version compatible with cuDNN 8) - also with no-deps
+pip3 install --no-deps ctranslate2==4.4.0
 
-# Install whisper packages
-pip3 install openai-whisper
-pip3 install git+https://github.com/m-bain/whisperx.git
+# Install core dependencies with pinned versions for stability
+pip3 install numpy==1.24.4 scipy==1.11.4 librosa==0.10.1 soundfile==0.12.1
+pip3 install openai-whisper==20231117
+
+# CRITICAL: Install specific WhisperX version compatible with PyTorch 2.1.2
+# Use version 3.1.6 which is known to work with PyTorch <2.4.0
+pip3 install --no-deps whisperx==3.1.6
+
+# Install WhisperX dependencies with pinned versions to prevent future conflicts
+pip3 install faster-whisper==1.0.0 transformers==4.38.0 huggingface-hub==0.20.0
+pip3 install pandas==2.0.3 av==11.0.0 pyannote.audio==3.1.1 omegaconf==2.3.0
 log_step "✅ Dependencies installed"
 
 aws s3 cp s3://METRICS_BUCKET_PLACEHOLDER/worker-code/latest/transcription_worker.py . --region REGION_PLACEHOLDER
@@ -211,12 +223,16 @@ log_step "✅ Worker code downloaded"
 # PHASE 4: GPU Worker Startup
 log_step "🚀 PHASE 4: Starting GPU-accelerated worker"
 
-# Configure GPU environment for DLAMI
+# Configure GPU environment for DLAMI (inspired by successful Docker approach)
 export CUDA_VISIBLE_DEVICES="0"
 export LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/local/cuda/lib:\$LD_LIBRARY_PATH"
 
+# CRITICAL: Add pip-installed cuDNN path for PyTorch 2.1.2 compatibility
+export LD_LIBRARY_PATH="/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib:\$LD_LIBRARY_PATH"
+
 log_step "📚 GPU environment configured for DLAMI"
-log_step "   PyTorch: 2.1.0 (cuDNN 9.x compatible)"
+log_step "   PyTorch: 2.1.2 (cuDNN 8.x compatible, --no-deps install)"
+log_step "   CTranslate2: 4.4.0 (cuDNN 8.x compatible)"
 log_step "   CUDA: \$(readlink -f /usr/local/cuda)"
 log_step "   GPU: Enabled"
 

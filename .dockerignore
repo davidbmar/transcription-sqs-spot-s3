@@ -1,28 +1,36 @@
-# Git files
-.git
+# Ignore large files and directories that aren't needed in Docker build
+
+# Version control
+.git/
 .gitignore
 
-# Python cache
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.egg-info
-.pytest_cache
-
-# Environment files
-.env
-.env.*
-!.env.template
+# Documentation
+*.md
+docs/
 
 # Logs
 *.log
 logs/
 
-# AWS credentials
-.aws/
-*.pem
+# Cache directories
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment files (contain secrets)
+.env
+.env.*
+
+# Test files
+test*
+*test*
+tests/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
 
 # IDE files
 .vscode/
@@ -30,19 +38,33 @@ logs/
 *.swp
 *.swo
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# Build artifacts
-build/
-dist/
-*.tar.gz
-
-# Documentation
-*.md
-docs/
-
 # Temporary files
-tmp/
+.tmp/
 temp/
+*.tmp
+
+# Large data files
+*.mp3
+*.wav
+*.mp4
+*.avi
+
+# AWS and deployment files
+*.pem
+*.key
+
+# Setup status
+.setup-status
+.deployment-path
+
+# Scripts (except source code)
+scripts/
+docker/
+
+# Jupyter notebooks
+*.ipynb
+
+# Large dependencies that will be installed in container
+node_modules/
+venv/
+.venv/

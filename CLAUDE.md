@@ -25,8 +25,12 @@ Audio Files (S3) → SQS Queue → EC2 Workers (GPU) → Transcripts (S3)
 - **Dual Deployment**: Traditional EC2 direct install vs Docker containerized
 
 ### 🛤️ Deployment Paths:
-- **Path A (Traditional)**: Direct EC2 installation with spot instances
-- **Path B (Docker)**: Containerized deployment with ECR and on-demand instances
+- **Path 100 (Traditional)**: Direct EC2 installation with DLAMI and spot instances  
+- **Path 200 (Docker GPU)**: Containerized deployment with ECR and GPU optimization
+
+### 📊 Performance Benchmarks:
+- **Docker GPU (Path 200)**: 16.4x real-time speed (60min podcast in 3min 40sec)
+- **Traditional (Path 100)**: Variable based on instance configuration and setup
 
 ## 🔧 Configuration Patterns
 
@@ -66,7 +70,7 @@ CONFIG = load_config()
 ### 🛤️ Deployment Path Selection:
 5. **Choose Path**: `step-060-choose-deployment-path.sh`
 
-### 🚀 Path A: DLAMI Deployment (100-series):
+### 🚀 Path 100: DLAMI Deployment (Traditional):
 6. **EC2 Configuration**: `step-101-setup-ec2-configuration.sh` + `step-102-validate-ec2-configuration.sh`
 7. **Deploy Code**: `step-110-deploy-worker-code.sh` + `step-111-validate-worker-code.sh`
 8. **Launch DLAMI Workers**: `scripts/launch-dlami-ondemand-worker.sh`
@@ -74,11 +78,13 @@ CONFIG = load_config()
 10. **System Fixes**: `step-130-update-system-fixes.sh`
 11. **End-to-End Test**: `step-135-test-complete-workflow.sh`
 
-### 🐳 Path B: Docker Deployment (200-series):
-6. **Docker Prerequisites**: `step-200-setup-docker-prerequisites.sh` + `step-201-validate-docker-setup.sh`
-7. **Build Image**: `step-210-build-worker-image.sh` + `step-211-push-to-ecr.sh`
-8. **Launch Workers**: `step-220-launch-docker-worker.sh`
-9. **Health Check**: `step-225-check-docker-health.sh`
+### 🐳 Path 200: Docker GPU Deployment (Production-Ready):
+6. **Docker Prerequisites**: `step-200-docker-setup-ecr-repository.sh` + `step-201-docker-validate-ecr-configuration.sh`
+7. **Build GPU Image**: `step-210-docker-build-gpu-worker-image.sh` + `step-211-docker-push-image-to-ecr.sh`
+8. **Launch GPU Workers**: `step-220-docker-launch-gpu-workers.sh`
+9. **Health Monitoring**: `step-225-docker-monitor-worker-health.sh`
+10. **Test Workflow**: `step-235-docker-test-transcription-workflow.sh` (short audio)
+11. **Benchmark Podcast**: `step-240-docker-benchmark-podcast-transcription.sh` (60min audio)
 
 ### 🔧 System Operations (Both Paths):
 10. **Process Jobs**: Submit via `send_to_queue.py` or direct SQS integration

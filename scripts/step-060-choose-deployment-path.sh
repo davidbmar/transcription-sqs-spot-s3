@@ -100,7 +100,7 @@ case ${choice^^} in
         echo "🐳 Docker path selected!"
         echo ""
         echo "📋 Your next steps:"
-        echo "1. Run: ./scripts/step-200-setup-docker-prerequisites.sh"
+        echo "1. Run: ./scripts/step-200-docker-setup-ecr-repository.sh"
         echo "2. Follow the Docker deployment sequence:"
         echo "   • Setup: steps 200-211 (Docker prerequisites and image build)"
         echo "   • Deploy: steps 220-225 (launch GPU workers with Docker)"
@@ -110,8 +110,8 @@ case ${choice^^} in
         echo "📚 Documentation: See DOCKER_GPU_IMPLEMENTATION_PLAN.md"
         
         # Create convenience symlinks
-        ln -sf ./scripts/step-220-launch-docker-worker.sh ./scripts/launch-worker.sh 2>/dev/null || true
-        ln -sf ./scripts/step-225-check-docker-health.sh ./scripts/check-health.sh 2>/dev/null || true
+        ln -sf ./scripts/step-220-docker-launch-gpu-workers.sh ./scripts/launch-worker.sh 2>/dev/null || true
+        ln -sf ./scripts/step-225-docker-monitor-worker-health.sh ./scripts/check-health.sh 2>/dev/null || true
         ;;
     *)
         echo ""
