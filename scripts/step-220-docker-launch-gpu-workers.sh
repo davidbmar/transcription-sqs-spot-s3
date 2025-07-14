@@ -165,7 +165,7 @@ docker run -d \
     -v /var/log:/var/log \
     "$ECR_REPOSITORY_URI:$DOCKER_IMAGE_TAG" \
     --queue-url "$QUEUE_URL" \
-    --s3-bucket "$AUDIO_BUCKET" \
+    --s3-bucket "$METRICS_BUCKET" \
     --region "$AWS_REGION" \
     --model large-v3 \
     --idle-timeout 60

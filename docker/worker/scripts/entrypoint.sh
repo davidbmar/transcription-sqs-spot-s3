@@ -32,7 +32,7 @@ fi
 # Check for required environment variables
 echo ""
 echo "🔧 Environment Check:"
-REQUIRED_VARS=("AWS_REGION" "QUEUE_URL" "AWS_ACCESS_KEY_ID" "AWS_SECRET_ACCESS_KEY")
+REQUIRED_VARS=("AWS_REGION" "QUEUE_URL" "METRICS_BUCKET" "AWS_ACCESS_KEY_ID" "AWS_SECRET_ACCESS_KEY")
 for var in "${REQUIRED_VARS[@]}"; do
     if [ -z "${!var}" ]; then
         echo "❌ Missing environment variable: $var"
@@ -61,7 +61,7 @@ trap cleanup SIGTERM SIGINT
 echo ""
 echo "🎵 Starting transcription worker..."
 cd /app
-python3 -m src.transcription_worker --queue-url "$QUEUE_URL" --region "$AWS_REGION" &
+python3 -m src.transcription_worker --queue-url "$QUEUE_URL" --s3-bucket "$METRICS_BUCKET" --region "$AWS_REGION" &
 WORKER_PID=$!
 
 # Wait for worker to finish
