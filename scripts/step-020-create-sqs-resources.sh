@@ -282,3 +282,14 @@ Configuration File: queue-config.env
 EOF
 
 print_status "Summary saved to queue-resources-summary.txt"
+
+# Update setup status
+echo "step-020-completed=$(date)" >> .setup-status
+
+# Suggest next step
+echo ""
+print_status "=== Next Step ==="
+echo ""
+echo "Run the validation script to verify SQS resources:"
+echo "  ./scripts/step-021-validate-sqs-resources.sh"
+echo ""
