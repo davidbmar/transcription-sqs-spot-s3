@@ -40,20 +40,73 @@ echo -e "${GREEN}[STEP 1]${NC} Checking Docker environment..."
 
 # Check Docker installation
 if ! command -v docker >/dev/null 2>&1; then
-    echo -e "${RED}[ERROR]${NC} Docker is not installed or not in PATH"
-    echo "Install Docker: https://docs.docker.com/engine/install/"
-    exit 1
+    echo -e "${YELLOW}[WARNING]${NC} Docker is not installed"
+    echo "Attempting to install Docker..."
+    
+    # Check if we're on Ubuntu/Debian
+    if command -v apt-get >/dev/null 2>&1; then
+        # Download and run Docker installation script
+        curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+        sudo sh /tmp/get-docker.sh
+        rm /tmp/get-docker.sh
+        
+        # Add current user to docker group
+        sudo usermod -aG docker $USER
+        
+        # Start Docker service
+        sudo systemctl start docker 2>/dev/null || sudo service docker start 2>/dev/null || true
+        
+        echo -e "${GREEN}[OK]${NC} Docker installed successfully"
+        echo -e "${YELLOW}[NOTE]${NC} You've been added to the docker group, but you may need to log out and back in"
+        echo "For now, this script will use sudo for Docker commands."
+        
+        # Create alias for docker commands with sudo
+        docker() {
+            sudo docker "$@"
+        }
+    else
+        echo -e "${RED}[ERROR]${NC} Cannot auto-install Docker on this system"
+        echo "Please install Docker manually: https://docs.docker.com/engine/install/"
+        exit 1
+    fi
+    
+    # Verify installation worked
+    if ! command -v docker >/dev/null 2>&1 && ! command -v sudo docker >/dev/null 2>&1; then
+        echo -e "${RED}[ERROR]${NC} Docker installation failed"
+        exit 1
+    fi
 fi
 
 # Check Docker daemon
-if ! docker info >/dev/null 2>&1; then
+if ! docker info >/dev/null 2>&1 && ! sudo docker info >/dev/null 2>&1; then
     echo -e "${RED}[ERROR]${NC} Docker daemon is not running"
-    echo "Start Docker daemon and try again"
+    echo ""
+    echo "Please start Docker by running:"
+    echo -e "${GREEN}sudo systemctl start docker${NC}"
+    echo ""
+    echo "Then run this script again."
     exit 1
 fi
 
 echo -e "${GREEN}[OK]${NC} Docker environment ready"
 docker --version
+
+# Check if user has permission to run Docker without sudo
+if ! docker ps >/dev/null 2>&1; then
+    if sudo docker ps >/dev/null 2>&1; then
+        echo -e "${YELLOW}[WARNING]${NC} Docker requires sudo. You may need to add your user to the docker group:"
+        echo "  sudo usermod -aG docker $USER"
+        echo "  Then log out and back in for changes to take effect."
+        echo "For now, this script will use sudo for Docker commands."
+        # Create alias for docker commands with sudo
+        docker() {
+            sudo docker "$@"
+        }
+    else
+        echo -e "${RED}[ERROR]${NC} Cannot access Docker daemon even with sudo"
+        exit 1
+    fi
+fi
 
 echo -e "${GREEN}[STEP 2]${NC} Preparing build context..."
 

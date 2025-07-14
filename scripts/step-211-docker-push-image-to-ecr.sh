@@ -31,6 +31,20 @@ if [ -z "$ECR_REPOSITORY_URI" ]; then
     exit 1
 fi
 
+# Check if user has permission to run Docker without sudo
+if ! docker ps >/dev/null 2>&1; then
+    if sudo docker ps >/dev/null 2>&1; then
+        echo -e "${YELLOW}[WARNING]${NC} Docker requires sudo. Using sudo for Docker commands."
+        # Create alias for docker commands with sudo
+        docker() {
+            sudo docker "$@"
+        }
+    else
+        echo -e "${RED}[ERROR]${NC} Cannot access Docker daemon even with sudo"
+        exit 1
+    fi
+fi
+
 # Check if image exists locally
 if ! docker images "$ECR_REPO_NAME:$DOCKER_IMAGE_TAG" --format "table {{.Repository}}" | grep -q "$ECR_REPO_NAME"; then
     echo -e "${RED}[ERROR]${NC} Docker image not found locally. Run step-210-docker-build-gpu-worker-image.sh first."
@@ -93,7 +107,7 @@ echo -e "${GREEN}[INFO]${NC} Recent images in repository:"
 aws ecr describe-images \
     --region "$AWS_REGION" \
     --repository-name "$ECR_REPO_NAME" \
-    --query 'sort_by(imageDetails, &imagePushedAt)[-5:].[imageDigest[0:12], imageTags[0], round(imageSizeInBytes/`1024`/`1024`), imagePushedAt]' \
+    --query 'sort_by(imageDetails, &imagePushedAt)[-5:].{Digest: imageDigest, Tag: imageTags[0], SizeMB: imageSizeInBytes, PushedAt: imagePushedAt}' \
     --output table
 
 echo
