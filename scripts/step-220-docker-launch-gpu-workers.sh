@@ -31,6 +31,12 @@ if [ -z "$ECR_REPOSITORY_URI" ]; then
     exit 1
 fi
 
+# Verify EC2 configuration
+if [ -z "$SECURITY_GROUP_ID" ] || [ -z "$KEY_NAME" ] || [ -z "$SUBNET_ID" ]; then
+    echo -e "${RED}[ERROR]${NC} EC2 configuration missing. Run step-202-docker-setup-ec2-network-and-security.sh first."
+    exit 1
+fi
+
 # Verify image exists in ECR
 echo -e "${GREEN}[STEP 1]${NC} Verifying Docker image in ECR..."
 if ! aws ecr describe-images \
