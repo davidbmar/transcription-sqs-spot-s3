@@ -113,7 +113,9 @@ distribution=\$(. /etc/os-release;echo \$ID\$VERSION_ID)
 curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add -
 curl -s -L https://nvidia.github.io/nvidia-docker/\$distribution/nvidia-docker.list | tee /etc/apt/sources.list.d/nvidia-docker.list
 apt-get update
-apt-get install -y nvidia-docker2
+
+# Install with automatic yes and force configuration file replacement
+DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confnew" nvidia-docker2
 systemctl restart docker
 log_step "✅ NVIDIA Container Toolkit installed"
 

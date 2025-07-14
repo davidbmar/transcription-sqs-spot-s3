@@ -26,6 +26,19 @@ echo -e "${BLUE}Docker GPU Worker Health Check${NC}"
 echo -e "${BLUE}======================================${NC}"
 echo
 
+# Check and fix SSH key permissions
+if [ -f "${KEY_NAME}.pem" ]; then
+    KEY_PERMS=$(stat -c '%a' "${KEY_NAME}.pem")
+    if [ "$KEY_PERMS" != "600" ]; then
+        echo -e "${YELLOW}[WARNING]${NC} SSH key permissions too open (${KEY_PERMS}). Fixing..."
+        chmod 600 "${KEY_NAME}.pem"
+        echo -e "${GREEN}[OK]${NC} SSH key permissions fixed"
+    fi
+else
+    echo -e "${RED}[ERROR]${NC} SSH key file ${KEY_NAME}.pem not found"
+    exit 1
+fi
+
 # Find running Docker workers
 echo -e "${GREEN}[STEP 1]${NC} Finding Docker GPU workers..."
 
