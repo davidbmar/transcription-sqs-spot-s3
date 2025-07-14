@@ -17,8 +17,8 @@ fi
 
 # Check deployment path
 if [ -f ".deployment-path" ]; then
-    source .deployment-path
-    if [ "$DEPLOYMENT_PATH" != "docker" ]; then
+    DEPLOYMENT_PATH=$(cat .deployment-path)
+    if [ "$DEPLOYMENT_PATH" != "docker" ] && [ "$DEPLOYMENT_PATH" != "docker-gpu" ]; then
         echo "⚠️  Warning: You selected the traditional path but are running Docker setup."
         echo "   Run step-060-choose-deployment-path.sh to switch to Docker path."
         read -p "Continue anyway? (y/N): " confirm

@@ -12,7 +12,7 @@ fi
 
 # Check if path already selected
 if [ -f ".deployment-path" ]; then
-    source .deployment-path
+    DEPLOYMENT_PATH=$(cat .deployment-path)
     echo "⚠️  Deployment path already selected: $DEPLOYMENT_PATH"
     read -p "Do you want to change it? (y/N): " change_choice
     if [[ ! "$change_choice" =~ ^[Yy]$ ]]; then
@@ -76,7 +76,7 @@ read -p "Select your deployment path (A/B): " choice
 
 case ${choice^^} in
     A)
-        echo "DEPLOYMENT_PATH=traditional" > .deployment-path
+        echo "traditional" > .deployment-path
         echo ""
         echo "✅ Traditional EC2 path selected!"
         echo ""
@@ -95,7 +95,7 @@ case ${choice^^} in
         ln -sf ./scripts/step-125-check-worker-health.sh ./scripts/check-health.sh 2>/dev/null || true
         ;;
     B)
-        echo "DEPLOYMENT_PATH=docker" > .deployment-path
+        echo "docker-gpu" > .deployment-path
         echo ""
         echo "🐳 Docker path selected!"
         echo ""
