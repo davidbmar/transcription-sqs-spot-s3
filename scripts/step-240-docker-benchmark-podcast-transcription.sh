@@ -56,7 +56,8 @@ echo -e "${GREEN}[STEP 2]${NC} Checking for Docker GPU workers..."
 WORKERS=$(aws ec2 describe-instances \
     --region "$AWS_REGION" \
     --filters \
-        "Name=tag:Type,Values=docker-gpu-worker" \
+        "Name=tag:Type,Values=whisper-worker" \
+        "Name=tag:Mode,Values=docker-gpu" \
         "Name=instance-state-name,Values=running" \
     --query "Reservations[*].Instances[*].[InstanceId,InstanceType,PublicIpAddress,Tags[?Key=='Name'].Value|[0]]" \
     --output text)
