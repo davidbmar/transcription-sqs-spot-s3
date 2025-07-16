@@ -28,25 +28,25 @@ echo
 
 # Test configuration for real podcast
 PODCAST_FILE="mfm-episode-723.mp3"
-PODCAST_S3_INPUT="integration-test-new/${PODCAST_FILE}"
-PODCAST_S3_OUTPUT="benchmark-transcripts/docker-gpu-podcast-$(date +%s).json"
+PODCAST_S3_INPUT="s3://${AUDIO_BUCKET}/integration-test-new/${PODCAST_FILE}"
+PODCAST_S3_OUTPUT="s3://${AUDIO_BUCKET}/benchmark-transcripts/docker-gpu-podcast-$(date +%s).json"
 ESTIMATED_DURATION=3600  # 60 minutes
 
 echo -e "${CYAN}📎 Podcast Benchmark Configuration:${NC}"
 echo "  📻 Podcast: My First Million Episode 723"
 echo "  📏 Size: ~68MB (60 minutes of audio)"
-echo "  📥 Input: s3://${AUDIO_BUCKET}/${PODCAST_S3_INPUT}"
-echo "  📤 Output: s3://${AUDIO_BUCKET}/${PODCAST_S3_OUTPUT}"
+echo "  📥 Input: ${PODCAST_S3_INPUT}"
+echo "  📤 Output: ${PODCAST_S3_OUTPUT}"
 echo "  🎯 Expected: 16x+ real-time speed with GPU"
 echo
 
 # Check if podcast file exists
 echo -e "${GREEN}[STEP 1]${NC} Verifying podcast file exists..."
-if aws s3 ls "s3://${AUDIO_BUCKET}/${PODCAST_S3_INPUT}" >/dev/null 2>&1; then
-    FILE_SIZE=$(aws s3 ls "s3://${AUDIO_BUCKET}/${PODCAST_S3_INPUT}" | awk '{print $3}')
+if aws s3 ls "${PODCAST_S3_INPUT}" >/dev/null 2>&1; then
+    FILE_SIZE=$(aws s3 ls "${PODCAST_S3_INPUT}" | awk '{print $3}')
     echo -e "${GREEN}[OK]${NC} Podcast file found (${FILE_SIZE} bytes)"
 else
-    echo -e "${RED}[ERROR]${NC} Podcast file not found at s3://${AUDIO_BUCKET}/${PODCAST_S3_INPUT}"
+    echo -e "${RED}[ERROR]${NC} Podcast file not found at ${PODCAST_S3_INPUT}"
     echo "Please upload a real podcast file for benchmarking"
     exit 1
 fi

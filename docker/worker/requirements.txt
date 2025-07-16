@@ -3,8 +3,8 @@ torch>=2.0.0
 torchaudio>=2.0.0
 torchvision
 openai-whisper>=20231117
-faster-whisper>=1.0.0
-git+https://github.com/m-bain/whisperx.git
+faster-whisper>=0.10.0,<1.0.0
+git+https://github.com/m-bain/whisperx.git@v3.1.0
 
 # AWS and cloud dependencies
 boto3>=1.28.0
