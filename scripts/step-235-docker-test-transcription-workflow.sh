@@ -54,8 +54,8 @@ S3_OUTPUT_PATH="output/$JOB_ID-transcript.json"
 JOB_MESSAGE=$(cat <<EOF
 {
     "job_id": "$JOB_ID",
-    "s3_input_path": "$S3_INPUT_PATH",
-    "s3_output_path": "$S3_OUTPUT_PATH",
+    "s3_input_path": "s3://$AUDIO_BUCKET/$S3_INPUT_PATH",
+    "s3_output_path": "s3://$AUDIO_BUCKET/$S3_OUTPUT_PATH",
     "priority": 1
 }
 EOF
@@ -99,7 +99,7 @@ if [ $ELAPSED -ge $TIMEOUT ]; then
     QUEUE_ATTRS=$(aws sqs get-queue-attributes \
         --region "$AWS_REGION" \
         --queue-url "$QUEUE_URL" \
-        --attribute-names ApproximateNumberOfMessages,ApproximateNumberOfMessagesNotVisible)
+        --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible)
     echo "$QUEUE_ATTRS"
     
     exit 1
