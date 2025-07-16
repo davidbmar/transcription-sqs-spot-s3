@@ -26,6 +26,8 @@ except ImportError:
     GPU_OPTIMIZED_AVAILABLE = False
     
 from transcriber import Transcriber, TranscriptionError
+from download_vad_model import download_vad_model_from_s3
+from patch_whisperx_vad import patch_whisperx_vad
 
 # Setup logging with both file and console output
 log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -95,6 +97,17 @@ class TranscriptionWorker:
         
         if use_gpu and GPU_OPTIMIZED_AVAILABLE:
             logger.info("🚀 Using GPU-OPTIMIZED transcriber for maximum performance")
+            
+            # Ensure VAD model is available
+            logger.info("🔄 Checking VAD model availability...")
+            try:
+                # Patch WhisperX to use our S3 URL
+                patch_whisperx_vad()
+                # Try to download VAD model if needed
+                download_vad_model_from_s3()
+            except Exception as e:
+                logger.warning(f"⚠️ VAD model setup failed: {e}")
+            
             self.transcriber = GPUOptimizedTranscriber(
                 model_name=model_name,
                 device=device,
