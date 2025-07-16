@@ -74,10 +74,9 @@ RUN pip install --no-deps --no-cache-dir whisperx==3.1.1
 RUN pip install --no-cache-dir pyannote.audio==3.1.1
 
 # Download VAD model from our S3 bucket to avoid HuggingFace dependencies
-ARG METRICS_BUCKET
 RUN mkdir -p /cache/torch && \
     curl -f -o /cache/torch/whisperx-vad-segmentation.bin \
-    "https://s3.amazonaws.com/${METRICS_BUCKET}/models/whisperx-vad-segmentation.bin" || \
+    "https://s3.amazonaws.com/dbm-cf-2-web/bintarball/whisperx-vad-segmentation.bin" || \
     echo "⚠️ VAD model download failed - will be downloaded at runtime"
 
 # Copy our transcription worker code

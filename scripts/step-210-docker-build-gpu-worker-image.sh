@@ -132,10 +132,9 @@ echo "Tag: $DOCKER_IMAGE_TAG"
 
 BUILD_START_TIME=$(date +%s)
 
-# Build Docker image with METRICS_BUCKET argument
+# Build Docker image (VAD model downloaded from S3 during build)
 docker build \
     -f docker/gpu-worker/Dockerfile \
-    --build-arg METRICS_BUCKET="$METRICS_BUCKET" \
     -t "$ECR_REPO_NAME:$DOCKER_IMAGE_TAG" \
     -t "$ECR_REPOSITORY_URI:$DOCKER_IMAGE_TAG" \
     .

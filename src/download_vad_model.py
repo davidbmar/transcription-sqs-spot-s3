@@ -21,22 +21,16 @@ def download_vad_model_from_s3():
         return True
     
     try:
-        # Get bucket from environment
-        metrics_bucket = os.environ.get('METRICS_BUCKET')
-        if not metrics_bucket:
-            logger.warning("⚠️ METRICS_BUCKET not set, cannot download VAD model")
-            return False
-        
         logger.info("📥 Downloading VAD model from S3...")
         
         # Ensure directory exists
         model_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Download from S3
+        # Download from S3 - using fixed bucket and path
         s3 = boto3.client('s3')
         s3.download_file(
-            metrics_bucket,
-            'models/whisperx-vad-segmentation.bin',
+            'dbm-cf-2-web',
+            'bintarball/whisperx-vad-segmentation.bin',
             str(model_path)
         )
         

@@ -21,11 +21,8 @@ def patch_whisperx_vad():
         with open(vad_file, 'r') as f:
             content = f.read()
         
-        # Get bucket from environment
-        metrics_bucket = os.environ.get('METRICS_BUCKET', 'dbm-tx-metrics-dev-20250714')
-        
         # Update the URL to use our S3 bucket
-        new_url = f"https://s3.amazonaws.com/{metrics_bucket}/models/whisperx-vad-segmentation.bin"
+        new_url = "https://s3.amazonaws.com/dbm-cf-2-web/bintarball/whisperx-vad-segmentation.bin"
         
         # Replace the URL
         content = re.sub(

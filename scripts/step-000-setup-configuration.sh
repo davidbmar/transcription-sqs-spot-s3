@@ -331,12 +331,26 @@ Your configuration has been saved to \`.env\`.
 
 ## Next Steps
 
-### 1. Set up IAM permissions (step-010)
+### 1. Set up VAD model for WhisperX (step-005) **REQUIRED**
+\`\`\`bash
+./scripts/step-005-setup-vad-model.sh
+\`\`\`
+
+**Prerequisites for step-005:**
+- HuggingFace account with access to pyannote/segmentation model
+- Visit https://huggingface.co/pyannote/segmentation and accept terms
+- Get HuggingFace token from https://huggingface.co/settings/tokens
+- Run: \`huggingface-cli login\` with your token
+
+The VAD (Voice Activity Detection) model is required for WhisperX transcription.
+This step downloads it from HuggingFace and uploads to S3 for reliable access.
+
+### 2. Set up IAM permissions (step-010)
 \`\`\`bash
 ./scripts/step-010-setup-iam-permissions.sh
 \`\`\`
 
-### 2. Create SQS queues and S3 buckets (step-020)
+### 3. Create SQS queues and S3 buckets (step-020)
 \`\`\`bash
 # Source the configuration first
 source .env
