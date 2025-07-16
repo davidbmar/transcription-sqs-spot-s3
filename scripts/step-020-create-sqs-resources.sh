@@ -4,14 +4,11 @@
 
 set -e
 
+# Load common functions
+source "$(dirname "$0")/common-functions.sh"
+
 # Load configuration
-CONFIG_FILE=".env"
-if [ -f "$CONFIG_FILE" ]; then
-    source "$CONFIG_FILE"
-else
-    echo "Error: Configuration file not found. Please run step-000-setup-configuration.sh first."
-    exit 1
-fi
+load_config
 
 # Use configuration values (no more hardcoded defaults)
 QUEUE_NAME="${QUEUE_NAME}"
@@ -19,24 +16,17 @@ DLQ_NAME="${DLQ_NAME}"
 REGION="${AWS_REGION}"
 METRICS_BUCKET="${METRICS_BUCKET}"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+print_header "Create SQS Resources"
 
-# Function to print colored output
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
+print_status "Preparing to create SQS resources"
+echo "  Queue Name: $QUEUE_NAME"
+echo "  DLQ Name: $DLQ_NAME"
+echo "  Region: $REGION"
+echo "  Metrics Bucket: $METRICS_BUCKET"
+echo
 
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
+# Check prerequisites
+check_aws_cli
 
 # Function to check if resource exists
 check_queue_exists() {
@@ -284,12 +274,18 @@ EOF
 print_status "Summary saved to queue-resources-summary.txt"
 
 # Update setup status
-echo "step-020-completed=$(date)" >> .setup-status
+echo "STEP_020_COMPLETE=$(date)" >> .setup-status
 
 # Suggest next step
 echo ""
-print_status "=== Next Step ==="
-echo ""
-echo "Run the validation script to verify SQS resources:"
-echo "  ./scripts/step-021-validate-sqs-resources.sh"
-echo ""
+print_summary "SQS Resources Created Successfully"
+
+print_status "Resources created:"
+echo "  Main Queue: $QUEUE_NAME ($QUEUE_URL)"
+echo "  Dead Letter Queue: $DLQ_NAME ($DLQ_URL)"
+echo "  Metrics Bucket: $METRICS_BUCKET"
+
+update_status "step-020"
+
+print_next_step "Run the validation script to verify SQS resources:
+  ./scripts/step-021-validate-sqs-resources.sh"
