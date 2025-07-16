@@ -458,6 +458,12 @@ class Transcriber:
                     if segment_data:
                         all_segments.extend(segment_data)
 
+                # Define VAD options for resume transcription
+                vad_options = {
+                    "vad_onset": self.vad_onset,
+                    "vad_offset": self.vad_offset,
+                }
+
                 # Process remaining chunks
                 for i, chunk_file in enumerate(chunk_files):
                     if i in completed_segments:

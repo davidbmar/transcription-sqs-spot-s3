@@ -96,12 +96,19 @@ class GPUOptimizedTranscriber:
             # Always use float16 for GPU, float32 for CPU
             compute_type = "float16" if self.device == "cuda" else "float32"
             
-            # Load model with optimizations
+            # Load model with optimizations (compatible with WhisperX 3.1.1+)
+            asr_options = {
+                "max_new_tokens": None,
+                "clip_timestamps": None, 
+                "hallucination_silence_threshold": None
+            }
+            
             self.model = whisperx.load_model(
                 self.model_name, 
                 self.device, 
                 compute_type=compute_type,
-                download_root=None  # Use default cache
+                download_root=None,  # Use default cache
+                asr_options=asr_options
             )
             
             logger.info(f"✅ MODEL LOADED: {self.model_name} with {compute_type} compute")
@@ -367,8 +374,10 @@ class GPUOptimizedTranscriber:
                                 
                                 if "words" in segment:
                                     for word in segment["words"]:
-                                        word["start"] += start_time
-                                        word["end"] += start_time
+                                        if "start" in word:
+                                            word["start"] += start_time
+                                        if "end" in word:
+                                            word["end"] += start_time
                             
                             all_segments.extend(aligned_result["segments"])
                     
