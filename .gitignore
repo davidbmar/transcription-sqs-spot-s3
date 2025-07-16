@@ -54,3 +54,14 @@ health_check.txt
 bin/*.tar.xz
 bin/*.tar.gz
 bin/*.deb
+
+# Generated status and configuration files
+.setup-status
+queue-resources-summary.txt
+*.pem
+awscliv2.zip
+get-docker.sh
+test_transcription.py
+
+# Downloaded AWS CLI
+aws/
