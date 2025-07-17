@@ -187,9 +187,9 @@ if [ -n "$AMI_ID" ] && [ -n "$INSTANCE_TYPE" ] && [ -n "$KEY_NAME" ] && [ -n "$S
 fi
 
 # Check 9: Setup status updated
-check_status "Step 102 marked complete" \
-    "grep -q 'STEP_102_COMPLETE=' .setup-status" \
-    "Run ./scripts/step-025-setup-ec2-configuration.sh"
+check_status "Step 202 marked complete" \
+    "grep -q 'step-202-completed=' .setup-status" \
+    "Run ./scripts/step-202-docker-setup-ec2-network-and-security.sh"
 
 # Summary
 echo
