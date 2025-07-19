@@ -50,9 +50,9 @@ echo -e "${GREEN}3. GPU Instance Launch:${NC}"
 echo "   ./scripts/step-420-voxtral-launch-gpu-instances.sh"
 echo "   📝 - Launch GPU instances for Real Voxtral processing"
 echo
-echo -e "${GREEN}4. Health & Testing:${NC}"
-echo "   ./scripts/step-425-voxtral-fix-ssh-access.sh"
-echo "   📝 - Fix SSH access to Voxtral instances (if needed)"
+echo -e "${GREEN}4. Access & Health Monitoring:${NC}"
+echo "   ./scripts/step-425-voxtral-add-current-ip-to-security-group.sh"
+echo "   📝 - Add your current IP to EC2 security group for SSH access"
 echo
 echo "   ./scripts/step-426-voxtral-check-gpu-health.sh"
 echo "   📝 - Monitor Real Voxtral container health"
