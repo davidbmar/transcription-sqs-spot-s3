@@ -56,6 +56,7 @@ echo -e "${GREEN}[OK]${NC} Prerequisites validated"
 echo -e "${GREEN}[STEP 2]${NC} Launch configuration..."
 echo "Instance type: $INSTANCE_TYPE"
 echo "Instance count: $INSTANCE_COUNT"
+echo "Disk size: 100GB (GP3 SSD)"
 echo "ECR image: $REAL_VOXTRAL_ECR_REPOSITORY_URI:$REAL_VOXTRAL_DOCKER_IMAGE_TAG"
 echo "Security group: $SECURITY_GROUP_ID"
 echo "Subnet: $SUBNET_ID"
@@ -188,6 +189,7 @@ LAUNCH_RESPONSE=$(aws ec2 run-instances \
     --subnet-id "$SUBNET_ID" \
     --iam-instance-profile Name="$INSTANCE_PROFILE" \
     --user-data file:///tmp/voxtral-user-data.sh \
+    --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":100,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
     --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${QUEUE_PREFIX}-real-voxtral-worker},{Key=Type,Value=real-voxtral-worker},{Key=Environment,Value=${ENVIRONMENT}},{Key=Model,Value=voxtral}]" \
     --region "$AWS_REGION" \
     --output json)
