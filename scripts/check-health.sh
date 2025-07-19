@@ -1,1 +1,1 @@
-./scripts/step-125-check-worker-health.sh
+./scripts/step-225-docker-monitor-worker-health.sh

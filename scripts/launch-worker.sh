@@ -1,1 +1,1 @@
-./scripts/step-120-launch-spot-worker.sh
+./scripts/step-220-docker-launch-gpu-workers.sh
