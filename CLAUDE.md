@@ -27,9 +27,13 @@ Audio Files (S3) → SQS Queue → EC2 Workers (GPU) → Transcripts (S3)
 ### 🛤️ Deployment Paths:
 - **Path 100 (Traditional)**: Direct EC2 installation with DLAMI and spot instances  
 - **Path 200 (Docker GPU)**: Containerized deployment with ECR and GPU optimization
+- **Path 300 (Fast API)**: Real-time HTTP API using Whisper (renamed from misleading "Voxtral")
+- **Path 400 (Real Voxtral)**: Actual Mistral Voxtral-Mini-3B-2507 model deployment
 
 ### 📊 Performance Benchmarks:
 - **Docker GPU (Path 200)**: 16.4x real-time speed (60min podcast in 3min 40sec)
+- **Fast API (Path 300)**: 13x real-time speed with HTTP API
+- **Real Voxtral (Path 400)**: Variable, 4.7B parameter model with native audio understanding
 - **Traditional (Path 100)**: Variable based on instance configuration and setup
 
 ## 🔧 Configuration Patterns
@@ -85,6 +89,20 @@ CONFIG = load_config()
 9. **Health Monitoring**: `step-225-docker-monitor-worker-health.sh`
 10. **Test Workflow**: `step-235-docker-test-transcription-workflow.sh` (short audio)
 11. **Benchmark Podcast**: `step-240-docker-benchmark-podcast-transcription.sh` (60min audio)
+
+### ⚡ Path 300: Fast API Deployment (Real-time HTTP):
+6. **ECR Setup**: `step-301-fast-api-setup-ecr-repository.sh` + `step-302-fast-api-validate-ecr-configuration.sh`
+7. **Build Image**: `step-310-fast-api-build-gpu-docker-image.sh` + `step-311-fast-api-push-image-to-ecr.sh`
+8. **Launch Workers**: `step-320-fast-api-launch-gpu-workers.sh`
+9. **Health Check**: `step-325-fast-api-fix-ssh-access.sh` + `step-326-fast-api-check-gpu-health.sh`
+10. **Test API**: `step-330-fast-api-test-transcription.sh`
+
+### 🎯 Path 400: Real Voxtral Deployment (Mistral's Actual Model):
+6. **ECR Setup**: `step-401-voxtral-setup-ecr-repository.sh` + `step-402-voxtral-validate-ecr-configuration.sh`
+7. **Build Image**: `step-410-voxtral-build-gpu-docker-image.sh` + `step-411-voxtral-push-image-to-ecr.sh`
+8. **Launch GPU**: `step-420-voxtral-launch-gpu-instances.sh` (100GB disk)
+9. **Health & SSH**: `step-425-voxtral-fix-ssh-access.sh` + `step-426-voxtral-check-gpu-health.sh`
+10. **Test & Benchmark**: `step-430-voxtral-test-transcription.sh` + `step-435-voxtral-benchmark-vs-whisper.sh`
 
 ### 🔧 System Operations (Both Paths):
 10. **Process Jobs**: Submit via `send_to_queue.py` or direct SQS integration
