@@ -140,8 +140,11 @@ async def transcribe(file: UploadFile = File(...)):
         
         # Process with Voxtral
         logger.info("🤖 Running Voxtral transcription...")
+        # Voxtral requires both audio and text inputs
+        # For transcription, we provide a prompt asking for transcription
         inputs = processor(
             audio=audio,
+            text="<|transcribe|>",  # Voxtral transcription prompt
             sampling_rate=sample_rate,
             return_tensors="pt"
         ).to(device)

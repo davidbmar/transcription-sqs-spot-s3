@@ -39,6 +39,9 @@ echo
 echo "   ./scripts/step-402-voxtral-validate-ecr-configuration.sh"
 echo "   📝 - Validate ECR setup and permissions"
 echo
+echo "   ./scripts/step-405-voxtral-setup-model-cache.sh"
+echo "   📝 - Setup S3 model caching for faster deployments (optional but recommended)"
+echo
 echo -e "${GREEN}2. Docker Image Build:${NC}"
 echo "   ./scripts/step-410-voxtral-build-gpu-docker-image.sh"
 echo "   📝 - Build Voxtral Docker image with vLLM and audio support"
@@ -56,6 +59,9 @@ echo "   📝 - Add your current IP to EC2 security group for SSH access"
 echo
 echo "   ./scripts/step-426-voxtral-check-gpu-health.sh"
 echo "   📝 - Monitor Real Voxtral container health"
+echo
+echo "   ./scripts/step-427-voxtral-monitor-model-loading.sh"
+echo "   📝 - Monitor model loading with detailed timing (for benchmarking)"
 echo
 echo "   ./scripts/step-430-voxtral-test-transcription.sh"
 echo "   📝 - Test Real Voxtral with audio files"
@@ -76,7 +82,8 @@ echo "   - Model uses bfloat16 precision on GPU"
 echo "   - Supports up to 30 minutes of audio per request"
 echo
 echo -e "${YELLOW}🚀 Getting Started:${NC}"
-echo "   Start with step-401 to create the ECR repository for Real Voxtral"
+echo "   1. Start with step-401 to create the ECR repository for Real Voxtral"
+echo "   2. Run step-405 to cache the model to S3 (recommended for faster deployments)"
 echo
 echo -e "${YELLOW}📝 Notes:${NC}"
 echo "   - This is REAL Voxtral, not Whisper"

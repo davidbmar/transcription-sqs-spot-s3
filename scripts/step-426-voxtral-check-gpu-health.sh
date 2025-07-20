@@ -79,7 +79,7 @@ echo -e "${GREEN}[OK]${NC} Found $INSTANCE_COUNT Real Voxtral instance(s)"
 # Display instance overview
 echo
 echo -e "${CYAN}Instance Overview:${NC}"
-echo "$REAL_VOXTRAL_INSTANCES" | jq -r '.[][] | "  \(.[0]) - \(.[1]) - \(.[3]) (launched: \(.[4]))"'
+echo "$REAL_VOXTRAL_INSTANCES" | jq -r '.[][] | "  \(.[0]) - Public: \(.[1]) - Private: \(.[2]) - \(.[3]) (launched: \(.[4]))"'
 
 # Check each instance
 echo
@@ -95,7 +95,9 @@ echo "$REAL_VOXTRAL_INSTANCES" | jq -c '.[][]' | while read -r instance; do
     STATE=$(echo "$instance" | jq -r '.[3]')
     
     echo
-    echo -e "${BLUE}Instance: $INSTANCE_ID ($PUBLIC_IP)${NC}"
+    echo -e "${BLUE}Instance: $INSTANCE_ID${NC}"
+    echo -e "  Public IP: $PUBLIC_IP"
+    echo -e "  Private IP: $PRIVATE_IP"
     
     INSTANCE_HEALTHY=true
     
@@ -107,13 +109,24 @@ echo "$REAL_VOXTRAL_INSTANCES" | jq -c '.[][]' | while read -r instance; do
         INSTANCE_HEALTHY=false
     fi
     
-    # Check 2: SSH connectivity
+    # Check 2: SSH connectivity (try public first, then private)
     echo -n "  SSH connectivity... "
-    if ssh -i "$KEY_NAME.pem" -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@"$PUBLIC_IP" "echo 'test'" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC}"
+    SSH_WORKS=false
+    SSH_IP=""
+    
+    # Try public IP first
+    if ssh -i "$KEY_NAME.pem" -o ConnectTimeout=5 -o StrictHostKeyChecking=no ubuntu@"$PUBLIC_IP" "echo 'test'" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ (public IP)${NC}"
+        SSH_WORKS=true
+        SSH_IP="$PUBLIC_IP"
+    # Try private IP as fallback
+    elif ssh -i "$KEY_NAME.pem" -o ConnectTimeout=5 -o StrictHostKeyChecking=no ubuntu@"$PRIVATE_IP" "echo 'test'" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ (private IP)${NC}"
+        SSH_WORKS=true
+        SSH_IP="$PRIVATE_IP"
     else
         echo -e "${RED}✗${NC}"
-        echo -e "    ${YELLOW}Help:${NC} Check security group SSH rules"
+        echo -e "    ${YELLOW}Help:${NC} Check security group SSH rules or try: ./scripts/step-425-voxtral-add-current-ip-to-security-group.sh"
         INSTANCE_HEALTHY=false
     fi
     
@@ -152,24 +165,30 @@ echo "$REAL_VOXTRAL_INSTANCES" | jq -c '.[][]' | while read -r instance; do
     fi
     
     # Check 5: Docker container status (requires SSH)
-    echo -n "  Docker container... "
-    CONTAINER_STATUS=$(ssh -i "$KEY_NAME.pem" -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@"$PUBLIC_IP" \
-        "docker ps --filter name=real-voxtral-worker --format '{{.Status}}'" 2>/dev/null || echo "unknown")
-    
-    if [[ "$CONTAINER_STATUS" == *"Up"* ]]; then
-        echo -e "${GREEN}✓ $CONTAINER_STATUS${NC}"
-    elif [ "$CONTAINER_STATUS" = "unknown" ]; then
-        echo -e "${YELLOW}? SSH failed${NC}"
-        INSTANCE_HEALTHY=false
+    if [ "$SSH_WORKS" = true ]; then
+        echo -n "  Docker container... "
+        CONTAINER_STATUS=$(ssh -i "$KEY_NAME.pem" -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@"$SSH_IP" \
+            "docker ps --filter name=real-voxtral-worker --format '{{.Status}}'" 2>/dev/null || echo "unknown")
+        
+        if [[ "$CONTAINER_STATUS" == *"Up"* ]]; then
+            echo -e "${GREEN}✓ $CONTAINER_STATUS${NC}"
+        elif [ "$CONTAINER_STATUS" = "unknown" ]; then
+            echo -e "${YELLOW}? SSH failed${NC}"
+            INSTANCE_HEALTHY=false
+        else
+            echo -e "${RED}✗ $CONTAINER_STATUS${NC}"
+            INSTANCE_HEALTHY=false
+        fi
+        
+        # Check 6: GPU availability (if accessible)
+        echo -n "  GPU detection... "
+        GPU_STATUS=$(ssh -i "$KEY_NAME.pem" -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@"$SSH_IP" \
+            "docker exec real-voxtral-worker nvidia-smi --query-gpu=name --format=csv,noheader" 2>/dev/null || echo "unknown")
     else
-        echo -e "${RED}✗ $CONTAINER_STATUS${NC}"
+        echo "  Docker container... ${YELLOW}? SSH not available${NC}"
+        echo "  GPU detection... ${YELLOW}? SSH not available${NC}"
         INSTANCE_HEALTHY=false
     fi
-    
-    # Check 6: GPU availability (if accessible)
-    echo -n "  GPU detection... "
-    GPU_STATUS=$(ssh -i "$KEY_NAME.pem" -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@"$PUBLIC_IP" \
-        "docker exec real-voxtral-worker nvidia-smi --query-gpu=name --format=csv,noheader" 2>/dev/null || echo "unknown")
     
     if [ "$GPU_STATUS" != "unknown" ] && [ -n "$GPU_STATUS" ]; then
         echo -e "${GREEN}✓ $GPU_STATUS${NC}"

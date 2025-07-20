@@ -89,6 +89,17 @@ fi
 # Create test audio files
 echo -e "${GREEN}[STEP 3]${NC} Creating test audio files..."
 
+# Check if ffmpeg is available
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo -e "${RED}[ERROR]${NC} FFmpeg is required for creating test audio files"
+    echo -e "${YELLOW}[SOLUTION]${NC} Install FFmpeg first:"
+    echo "  ./scripts/install-ffmpeg.sh"
+    echo
+    echo "Or install manually:"
+    echo "  sudo apt-get update && sudo apt-get install -y ffmpeg"
+    exit 1
+fi
+
 # Create a simple spoken text file (if we have text-to-speech)
 TEST_AUDIO_DIR="/tmp/voxtral-test"
 mkdir -p "$TEST_AUDIO_DIR"
@@ -96,22 +107,19 @@ mkdir -p "$TEST_AUDIO_DIR"
 echo -e "${CYAN}Creating test audio files...${NC}"
 
 # Test 1: Simple sine wave (for basic API testing)
-if command -v ffmpeg >/dev/null 2>&1; then
-    echo "  1. Creating sine wave test (3 seconds)..."
-    ffmpeg -f lavfi -i "sine=frequency=440:duration=3" -ar 16000 -ac 1 "$TEST_AUDIO_DIR/sine_test.wav" -y >/dev/null 2>&1
-    echo "    ✓ sine_test.wav created"
-    
-    # Test 2: White noise (more realistic for transcription testing)
-    echo "  2. Creating white noise test (2 seconds)..."
-    ffmpeg -f lavfi -i "anoisesrc=duration=2:color=white:sample_rate=16000:amplitude=0.1" "$TEST_AUDIO_DIR/noise_test.wav" -y >/dev/null 2>&1
-    echo "    ✓ noise_test.wav created"
-else
-    echo -e "${YELLOW}[WARNING]${NC} ffmpeg not available, creating minimal WAV files"
-    
-    # Create minimal WAV header for testing (won't transcribe properly)
-    echo "RIFF....WAVEfmt ............data...." > "$TEST_AUDIO_DIR/minimal_test.wav"
-    echo "    ✓ minimal_test.wav created (placeholder)"
-fi
+echo "  1. Creating sine wave test (3 seconds)..."
+ffmpeg -f lavfi -i "sine=frequency=440:duration=3" -ar 16000 -ac 1 "$TEST_AUDIO_DIR/sine_test.wav" -y >/dev/null 2>&1
+echo "    ✓ sine_test.wav created"
+
+# Test 2: Speech-like frequency pattern (simulates human voice range)
+echo "  2. Creating speech-like test (5 seconds)..."
+ffmpeg -f lavfi -i "sine=frequency=200:duration=1,sine=frequency=400:duration=1,sine=frequency=800:duration=1,sine=frequency=300:duration=1,sine=frequency=600:duration=1" -ar 16000 -ac 1 "$TEST_AUDIO_DIR/speech_like_test.wav" -y >/dev/null 2>&1
+echo "    ✓ speech_like_test.wav created"
+
+# Test 3: Combined tones (more complex audio)
+echo "  3. Creating complex tone test (3 seconds)..."
+ffmpeg -f lavfi -i "sine=frequency=440:duration=3,sine=frequency=880:duration=3" -filter_complex "[0:a][1:a]amix=inputs=2:duration=shortest" -ar 16000 -ac 1 "$TEST_AUDIO_DIR/complex_tone_test.wav" -y >/dev/null 2>&1
+echo "    ✓ complex_tone_test.wav created"
 
 # Test transcription with different files
 echo -e "${GREEN}[STEP 4]${NC} Testing Real Voxtral transcription..."

@@ -42,6 +42,44 @@ except Exception as e:
     print(f'❌ Unexpected error: {e}')
 "
 
+# Model caching setup
+echo "🗄️ Setting up model caching..."
+export MODELS_CACHE_BUCKET=${MODELS_CACHE_BUCKET:-"dbm-cf-2-web"}
+export MODELS_CACHE_PREFIX=${MODELS_CACHE_PREFIX:-"bintarball"}
+export VOXTRAL_MODEL_CACHE_KEY=${VOXTRAL_MODEL_CACHE_KEY:-"voxtral-mini-3b-2507-v1"}
+export CACHE_MODELS_TO_S3=${CACHE_MODELS_TO_S3:-"true"}
+
+CACHE_PATH="s3://$MODELS_CACHE_BUCKET/$MODELS_CACHE_PREFIX/$VOXTRAL_MODEL_CACHE_KEY"
+LOCAL_CACHE_DIR="/app/models/cached"
+
+echo "  Cache bucket: $MODELS_CACHE_BUCKET"
+echo "  Cache path: $CACHE_PATH"
+echo "  Local cache: $LOCAL_CACHE_DIR"
+
+# Check if model is cached in S3 and download
+if [ "$CACHE_MODELS_TO_S3" = "true" ]; then
+    echo "🔍 Checking S3 model cache..."
+    
+    if aws s3 ls "$CACHE_PATH/" >/dev/null 2>&1; then
+        echo "📥 Found cached model in S3, downloading..."
+        mkdir -p "$LOCAL_CACHE_DIR"
+        
+        if aws s3 cp "$CACHE_PATH/" "$LOCAL_CACHE_DIR/" --recursive; then
+            echo "✅ Model cache downloaded successfully"
+            export TRANSFORMERS_CACHE="$LOCAL_CACHE_DIR"
+            export HF_HOME="$LOCAL_CACHE_DIR"
+            echo "  Using cached model from: $LOCAL_CACHE_DIR"
+        else
+            echo "⚠️ Failed to download cache, will use Hugging Face"
+        fi
+    else
+        echo "🔄 No cached model found, will download from Hugging Face"
+        echo "  (Model will be cached for future use)"
+    fi
+else
+    echo "🔄 S3 caching disabled, using Hugging Face directly"
+fi
+
 # Start health check server in background
 echo "🏥 Starting health check server..."
 python3 /app/health_check.py &
@@ -68,4 +106,58 @@ echo "  - Main API: http://0.0.0.0:8000"
 echo "  - Health check: http://0.0.0.0:8080"
 echo "  - Model: mistralai/Voxtral-Mini-3B-2507"
 
-exec python3 /app/voxtral_server.py
+# Start server and cache model after successful load
+python3 /app/voxtral_server.py &
+SERVER_PID=$!
+
+# Function to cache model to S3 after successful load
+cache_model_to_s3() {
+    echo "🗄️ Checking if model should be cached to S3..."
+    
+    # Wait for server to be ready and model loaded
+    for i in {1..60}; do
+        if curl -f -s http://localhost:8080/health >/dev/null 2>&1; then
+            HEALTH_RESPONSE=$(curl -s http://localhost:8080/health)
+            MODEL_LOADED=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('model_loaded', False))" 2>/dev/null || echo "false")
+            
+            if [ "$MODEL_LOADED" = "True" ] || [ "$MODEL_LOADED" = "true" ]; then
+                echo "✅ Model loaded successfully, checking cache status..."
+                
+                # Check if we need to upload cache
+                if [ "$CACHE_MODELS_TO_S3" = "true" ] && ! aws s3 ls "$CACHE_PATH/" >/dev/null 2>&1; then
+                    echo "📤 Uploading model cache to S3..."
+                    
+                    # Find the transformers cache directory
+                    CACHE_SOURCE="/root/.cache/huggingface"
+                    if [ -n "$TRANSFORMERS_CACHE" ] && [ -d "$TRANSFORMERS_CACHE" ]; then
+                        CACHE_SOURCE="$TRANSFORMERS_CACHE"
+                    fi
+                    
+                    if [ -d "$CACHE_SOURCE" ]; then
+                        echo "  Uploading from: $CACHE_SOURCE"
+                        echo "  Uploading to: $CACHE_PATH/"
+                        
+                        if aws s3 cp "$CACHE_SOURCE/" "$CACHE_PATH/" --recursive --quiet; then
+                            echo "✅ Model cached to S3 successfully"
+                            echo "  Future deployments will be faster!"
+                        else
+                            echo "⚠️ Failed to cache model to S3 (non-critical)"
+                        fi
+                    else
+                        echo "⚠️ Cache directory not found: $CACHE_SOURCE"
+                    fi
+                else
+                    echo "ℹ️ Model already cached or caching disabled"
+                fi
+                break
+            fi
+        fi
+        sleep 10
+    done
+}
+
+# Run caching in background
+cache_model_to_s3 &
+
+# Wait for main server process
+wait $SERVER_PID
