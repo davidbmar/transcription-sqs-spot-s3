@@ -29,11 +29,13 @@ Audio Files (S3) → SQS Queue → EC2 Workers (GPU) → Transcripts (S3)
 - **Path 200 (Docker GPU)**: Containerized deployment with ECR and GPU optimization
 - **Path 300 (Fast API)**: Real-time HTTP API using Whisper (renamed from misleading "Voxtral")
 - **Path 400 (Real Voxtral)**: Actual Mistral Voxtral-Mini-3B-2507 model deployment
+- **Path 500 (Hybrid)**: Best of both worlds - Whisper + Voxtral on same GPU
 
 ### 📊 Performance Benchmarks:
 - **Docker GPU (Path 200)**: 16.4x real-time speed (60min podcast in 3min 40sec)
 - **Fast API (Path 300)**: 13x real-time speed with HTTP API
-- **Real Voxtral (Path 400)**: Variable, 4.7B parameter model with native audio understanding
+- **Real Voxtral (Path 400)**: 1.2x real-time speed, 4.7B parameter model with native audio understanding
+- **Hybrid (Path 500)**: Fast transcription (3s) + Smart analysis (25s) on same GPU
 - **Traditional (Path 100)**: Variable based on instance configuration and setup
 
 ## 🔧 Configuration Patterns
@@ -103,6 +105,13 @@ CONFIG = load_config()
 8. **Launch GPU**: `step-420-voxtral-launch-gpu-instances.sh` (100GB disk)
 9. **Health & SSH**: `step-425-voxtral-fix-ssh-access.sh` + `step-426-voxtral-check-gpu-health.sh`
 10. **Test & Benchmark**: `step-430-voxtral-test-transcription.sh` + `step-435-voxtral-benchmark-vs-whisper.sh`
+
+### 🎭 Path 500: Hybrid Deployment (Best of Both Worlds):
+6. **Prerequisites**: Both Path 300 and 400 Docker images built and pushed to ECR
+7. **Launch Hybrid**: `step-500-launch-hybrid-workers.sh` (Whisper + Voxtral on same GPU)
+8. **Test Deployment**: `step-501-test-hybrid-deployment.sh` (parallel processing validation)
+9. **Monitor Health**: `step-502-monitor-hybrid-health.sh` (dual container monitoring)
+10. **Scale Workers**: `step-503-scale-hybrid-workers.sh` (intelligent scaling based on queue depth)
 
 ### 🔧 System Operations (Both Paths):
 10. **Process Jobs**: Submit via `send_to_queue.py` or direct SQS integration

@@ -65,3 +65,6 @@ test_transcription.py
 
 # Downloaded AWS CLI
 aws/
+
+# Embedded git repositories
+transformers-source/
