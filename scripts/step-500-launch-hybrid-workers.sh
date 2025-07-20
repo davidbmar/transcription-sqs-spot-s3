@@ -25,23 +25,27 @@ done
 
 # Check ECR images exist
 echo "🐳 Checking ECR images..."
-aws ecr describe-images --repository-name "${QUEUE_PREFIX}-whisper-gpu" --region "$AWS_REGION" >/dev/null 2>&1 || {
-    echo "❌ Whisper ECR image not found. Run step-310-docker-build-whisper-image.sh first."
+# Extract repository name from URI
+WHISPER_REPO_NAME=$(echo "$WHISPER_ECR_URI" | sed 's|.*\.com/||' | cut -d: -f1)
+VOXTRAL_REPO_NAME=$(echo "$VOXTRAL_ECR_URI" | sed 's|.*\.com/||' | cut -d: -f1)
+
+aws ecr describe-images --repository-name "$WHISPER_REPO_NAME" --region "$AWS_REGION" >/dev/null 2>&1 || {
+    echo "❌ Whisper ECR image not found in $WHISPER_REPO_NAME"
     exit 1
 }
 
-aws ecr describe-images --repository-name "${QUEUE_PREFIX}-voxtral-gpu" --region "$AWS_REGION" >/dev/null 2>&1 || {
-    echo "❌ Voxtral ECR image not found. Run step-410-docker-build-voxtral-image.sh first."
+aws ecr describe-images --repository-name "$VOXTRAL_REPO_NAME" --region "$AWS_REGION" >/dev/null 2>&1 || {
+    echo "❌ Voxtral ECR image not found in $VOXTRAL_REPO_NAME"
     exit 1
 }
 
-# Get latest Ubuntu 22.04 GPU-enabled AMI
-echo "🔍 Finding latest Ubuntu 22.04 GPU AMI..."
+# Get latest NVIDIA Deep Learning AMI (has GPU drivers pre-installed)
+echo "🔍 Finding latest NVIDIA Deep Learning AMI..."
 AMI_ID=$(aws ec2 describe-images \
     --region "$AWS_REGION" \
     --owners amazon \
     --filters \
-        "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
+        "Name=name,Values=Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)*" \
         "Name=state,Values=available" \
         "Name=architecture,Values=x86_64" \
     --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' \
@@ -115,6 +119,9 @@ echo "=============================================="
 # Update system
 apt-get update -y
 apt-get upgrade -y
+
+# Install required packages
+apt-get install -y unzip curl
 
 # Install Docker
 echo "🐳 Installing Docker..."
@@ -366,13 +373,14 @@ echo "🚀 Launching hybrid worker instance..."
 INSTANCE_ID=$(aws ec2 run-instances \
     --image-id "$AMI_ID" \
     --instance-type g4dn.xlarge \
-    --key-name "${KEY_PAIR_NAME:-default}" \
+    --key-name "${KEY_PAIR_NAME:-transcription-worker-key-dev}" \
     --security-group-ids "$SECURITY_GROUP_ID" \
     --subnet-id "$SUBNET_ID" \
+    --block-device-mappings "DeviceName=/dev/sda1,Ebs={VolumeSize=100,VolumeType=gp3,DeleteOnTermination=true}" \
     --instance-initiated-shutdown-behavior terminate \
     --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${QUEUE_PREFIX}-hybrid-worker},{Key=Type,Value=hybrid-worker},{Key=Project,Value=$QUEUE_PREFIX}]" \
     --user-data "$USER_DATA" \
-    --iam-instance-profile Name="${EC2_ROLE_NAME:-whisper-worker-role}" \
+    --iam-instance-profile Name="${INSTANCE_PROFILE:-transcription-worker-profile}" \
     --region "$AWS_REGION" \
     --query 'Instances[0].InstanceId' \
     --output text)
