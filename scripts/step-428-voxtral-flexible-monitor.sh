@@ -172,7 +172,17 @@ check_container() {
 
 check_startup_logs() {
     ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -i "$KEY_NAME.pem" ubuntu@"$PUBLIC_IP" \
-        "sudo journalctl -u cloud-final -n 10 --no-pager 2>/dev/null | grep -E '(Pull|Download|Verifying|complete)' | tail -5" 2>/dev/null || echo ""
+        "sudo journalctl -u cloud-final -n 20 --no-pager 2>/dev/null | grep -E '(Pull|Download|Verifying|complete|Status|Starting|Digest|Created|Up)' | tail -10" 2>/dev/null || echo ""
+}
+
+check_docker_status() {
+    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -i "$KEY_NAME.pem" ubuntu@"$PUBLIC_IP" \
+        "docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}' | grep voxtral || echo 'No images yet'; echo '---'; docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Created}}' | grep -E '(NAMES|voxtral)' || echo 'No containers yet'" 2>/dev/null || echo ""
+}
+
+check_container_logs() {
+    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -i "$KEY_NAME.pem" ubuntu@"$PUBLIC_IP" \
+        "docker logs $VOXTRAL_CONTAINER_NAME 2>&1 | tail -20" 2>/dev/null || echo ""
 }
 
 check_api_health() {
@@ -204,8 +214,15 @@ while [ $ELAPSED -lt $TIMEOUT_SECONDS ]; do
         # Show Docker pull progress
         STARTUP_LOGS=$(check_startup_logs)
         if [ -n "$STARTUP_LOGS" ]; then
-            echo -e "${CYAN}📥 Docker image progress:${NC}"
+            echo -e "${CYAN}📥 Docker activity:${NC}"
             echo "$STARTUP_LOGS" | sed 's/^/    /'
+        fi
+        
+        # Show Docker status
+        DOCKER_STATUS=$(check_docker_status)
+        if [ -n "$DOCKER_STATUS" ]; then
+            echo -e "${CYAN}🐳 Docker status:${NC}"
+            echo "$DOCKER_STATUS" | sed 's/^/    /'
         fi
         
         add_timing_event "startup" "waiting" "Container not found"
@@ -230,6 +247,10 @@ while [ $ELAPSED -lt $TIMEOUT_SECONDS ]; do
             API_STATUS=$(echo "$HEALTH_RESPONSE" | jq -r '.status // "unknown"' 2>/dev/null || echo "unknown")
             
             echo -e "${CYAN}[${ELAPSED}s]${NC} Container: ✅ | Model: $([ "$MODEL_STATUS" = "true" ] && echo "✅" || echo "⏳") | API: $([ "$API_STATUS" = "healthy" ] && echo "✅" || echo "⏳")"
+            
+            # Show detailed health response
+            echo -e "${CYAN}📊 Health details:${NC}"
+            echo "$HEALTH_RESPONSE" | jq '.' 2>/dev/null | sed 's/^/    /' || echo "    $HEALTH_RESPONSE"
             
             if [ "$MODEL_STATUS" = "true" ] && [ "$MODEL_LOADED" = false ]; then
                 echo -e "${GREEN}[${ELAPSED}s]${NC} 🎉 Model loaded successfully!"
@@ -256,7 +277,32 @@ while [ $ELAPSED -lt $TIMEOUT_SECONDS ]; do
             fi
         else
             echo -e "${YELLOW}[${ELAPSED}s]${NC} Container: ✅ | API not responding yet..."
+            
+            # Show container logs to see what's happening
+            CONTAINER_LOGS=$(check_container_logs)
+            if [ -n "$CONTAINER_LOGS" ]; then
+                echo -e "${CYAN}📋 Container logs:${NC}"
+                echo "$CONTAINER_LOGS" | sed 's/^/    /'
+            fi
+            
+            # Show container status details
+            DOCKER_STATUS=$(check_docker_status)
+            if [ -n "$DOCKER_STATUS" ]; then
+                echo -e "${CYAN}🐳 Container status:${NC}"
+                echo "$DOCKER_STATUS" | sed 's/^/    /'
+            fi
         fi
+    elif [[ "$CONTAINER_STATUS" == *"Created"* ]] || [[ "$CONTAINER_STATUS" == *"Exited"* ]]; then
+        echo -e "${RED}[${ELAPSED}s]${NC} ⚠️ Container status: $CONTAINER_STATUS"
+        
+        # Show container logs to diagnose issue
+        CONTAINER_LOGS=$(check_container_logs)
+        if [ -n "$CONTAINER_LOGS" ]; then
+            echo -e "${CYAN}📋 Container logs:${NC}"
+            echo "$CONTAINER_LOGS" | sed 's/^/    /'
+        fi
+        
+        add_timing_event "container_issue" "error" "Container status: $CONTAINER_STATUS"
     fi
     
     sleep $CHECK_INTERVAL
