@@ -141,13 +141,39 @@ async def transcribe(file: UploadFile = File(...)):
         # Process with Voxtral
         logger.info("🤖 Running Voxtral transcription...")
         # Voxtral requires both audio and text inputs
-        # For transcription, we provide a prompt asking for transcription
-        inputs = processor(
-            audio=audio,
-            text="<|transcribe|>",  # Voxtral transcription prompt
-            sampling_rate=sample_rate,
-            return_tensors="pt"
-        ).to(device)
+        # Process audio and text separately to avoid tokenizer kwargs issues
+        try:
+            # Process audio
+            audio_inputs = processor.feature_extractor(
+                audio,
+                sampling_rate=sample_rate,
+                return_tensors="pt"
+            )
+            
+            # Process text prompt
+            text_inputs = processor.tokenizer(
+                "<|transcribe|>",
+                return_tensors="pt"
+            )
+            
+            # Combine inputs
+            inputs = {
+                "input_features": audio_inputs.input_features.to(device),
+                "input_ids": text_inputs.input_ids.to(device)
+            }
+            if "attention_mask" in text_inputs:
+                inputs["attention_mask"] = text_inputs.attention_mask.to(device)
+                
+        except AttributeError:
+            # Fallback to direct processor call if feature_extractor not available
+            logger.warning("Using fallback processor method")
+            inputs = processor(
+                audio=audio,
+                text="<|transcribe|>",
+                sampling_rate=sample_rate,
+                return_tensors="pt"
+            )
+            inputs = {k: v.to(device) for k, v in inputs.items()}
         
         # Generate transcription
         with torch.no_grad():

@@ -71,7 +71,7 @@ fi
 if curl -f -s --max-time 5 "http://$PUBLIC_IP:8080/health" >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Health endpoint is accessible${NC}"
     
-    HEALTH_INFO=$(curl -s "http://$PUBLIC_IP:8080/health" | jq . 2>/dev/null || echo '{}')
+    HEALTH_INFO=$(curl -s "http://$PUBLIC_IP:8000/health" | jq . 2>/dev/null || echo '{}')
     HEALTH_STATUS=$(echo "$HEALTH_INFO" | jq -r '.status // "unknown"')
     MODEL_LOADED=$(echo "$HEALTH_INFO" | jq -r '.model_loaded // false')
     
@@ -111,15 +111,15 @@ echo "  1. Creating sine wave test (3 seconds)..."
 ffmpeg -f lavfi -i "sine=frequency=440:duration=3" -ar 16000 -ac 1 "$TEST_AUDIO_DIR/sine_test.wav" -y >/dev/null 2>&1
 echo "    ✓ sine_test.wav created"
 
-# Test 2: Speech-like frequency pattern (simulates human voice range)
-echo "  2. Creating speech-like test (5 seconds)..."
-ffmpeg -f lavfi -i "sine=frequency=200:duration=1,sine=frequency=400:duration=1,sine=frequency=800:duration=1,sine=frequency=300:duration=1,sine=frequency=600:duration=1" -ar 16000 -ac 1 "$TEST_AUDIO_DIR/speech_like_test.wav" -y >/dev/null 2>&1
-echo "    ✓ speech_like_test.wav created"
+# Test 2: White noise (simulates speech-like complexity)
+echo "  2. Creating white noise test (3 seconds)..."
+ffmpeg -f lavfi -i "anoisesrc=d=3:c=white:r=16000" -ar 16000 -ac 1 "$TEST_AUDIO_DIR/noise_test.wav" -y >/dev/null 2>&1
+echo "    ✓ noise_test.wav created"
 
-# Test 3: Combined tones (more complex audio)
-echo "  3. Creating complex tone test (3 seconds)..."
-ffmpeg -f lavfi -i "sine=frequency=440:duration=3,sine=frequency=880:duration=3" -filter_complex "[0:a][1:a]amix=inputs=2:duration=shortest" -ar 16000 -ac 1 "$TEST_AUDIO_DIR/complex_tone_test.wav" -y >/dev/null 2>&1
-echo "    ✓ complex_tone_test.wav created"
+# Test 3: Minimal audio (very short for quick test)
+echo "  3. Creating minimal test (0.5 seconds)..."
+ffmpeg -f lavfi -i "sine=frequency=440:duration=0.5" -ar 16000 -ac 1 "$TEST_AUDIO_DIR/minimal_test.wav" -y >/dev/null 2>&1
+echo "    ✓ minimal_test.wav created"
 
 # Test transcription with different files
 echo -e "${GREEN}[STEP 4]${NC} Testing Real Voxtral transcription..."
