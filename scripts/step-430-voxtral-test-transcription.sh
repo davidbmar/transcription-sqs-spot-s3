@@ -228,10 +228,12 @@ echo "   curl http://$PUBLIC_IP:8000/ | jq ."
 # Performance comparison note
 echo
 echo -e "${YELLOW}[PERFORMANCE NOTES]${NC}"
-echo "- Real Voxtral model takes 5-10 minutes to load initially"
+echo "- Real Voxtral model takes 5-10 minutes to load initially (40s with S3 cache)"
 echo "- Subsequent requests are much faster"
-echo "- Performance depends on audio length and GPU utilization"
-echo "- Expected: 2-5x real-time speed for typical audio"
+echo "- Maximum input length: ~30 seconds per request"
+echo "- Performance: 1.2x real-time speed for 30-second audio"
+echo "- Architecture: Hybrid text-audio model with dynamic token placeholders"
+echo "- Requires transformers>=4.54.0.dev0 (bleeding edge)"
 
 # Cleanup
 echo

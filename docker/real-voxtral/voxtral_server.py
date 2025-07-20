@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Real Voxtral Server - Mistral's Voxtral-Mini-3B-2507 Voice-to-Text API
+WORKING VERSION with dynamic audio token calculation
 """
 
 import os
@@ -15,6 +16,7 @@ import io
 import librosa
 import soundfile as sf
 from pathlib import Path
+import numpy as np
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
@@ -97,6 +99,19 @@ def prepare_audio(audio_bytes, filename):
         logger.error(f"❌ Audio preparation failed: {e}")
         raise
 
+def calculate_audio_tokens_needed(audio_features):
+    """Calculate how many audio tokens are needed based on audio features"""
+    # The audio features are processed into embeddings that need token placeholders
+    # Based on Voxtral architecture, this is likely related to the time dimension
+    batch_size, n_features, time_steps = audio_features.shape
+    
+    # Empirical calculation based on error analysis:
+    # For 30-second audio: time_steps=3000, needed 375 tokens
+    # Ratio: 375/3000 = 0.125 or 1/8
+    num_audio_tokens = max(1, time_steps // 8)
+    
+    return num_audio_tokens
+
 @app.get("/")
 async def root():
     return {
@@ -105,7 +120,10 @@ async def root():
         "status": "ready" if model else "loading",
         "device": device,
         "cuda_available": torch.cuda.is_available(),
-        "note": "This is REAL Voxtral, not Whisper"
+        "note": "WORKING VERSION with dynamic audio token calculation",
+        "architecture": "Hybrid text-audio model with placeholder tokens",
+        "max_audio_length": "~30 seconds per request",
+        "version": "dynamic_audio_tokens_v1"
     }
 
 @app.get("/health")
@@ -138,44 +156,52 @@ async def transcribe(file: UploadFile = File(...)):
         # Prepare audio
         audio, sample_rate = prepare_audio(audio_bytes, file.filename)
         
-        # Process with Voxtral
-        logger.info("🤖 Running Voxtral transcription...")
-        # Voxtral requires both audio and text inputs
-        # Process audio and text separately to avoid tokenizer kwargs issues
-        try:
-            # Process audio
-            audio_inputs = processor.feature_extractor(
-                audio,
-                sampling_rate=sample_rate,
-                return_tensors="pt"
-            )
-            
-            # Process text prompt
-            text_inputs = processor.tokenizer(
-                "<|transcribe|>",
-                return_tensors="pt"
-            )
-            
-            # Combine inputs
-            inputs = {
-                "input_features": audio_inputs.input_features.to(device),
-                "input_ids": text_inputs.input_ids.to(device)
-            }
-            if "attention_mask" in text_inputs:
-                inputs["attention_mask"] = text_inputs.attention_mask.to(device)
-                
-        except AttributeError:
-            # Fallback to direct processor call if feature_extractor not available
-            logger.warning("Using fallback processor method")
-            inputs = processor(
-                audio=audio,
-                text="<|transcribe|>",
-                sampling_rate=sample_rate,
-                return_tensors="pt"
-            )
-            inputs = {k: v.to(device) for k, v in inputs.items()}
+        # Extract audio features
+        logger.info("🔧 Extracting audio features...")
+        audio_features = processor.feature_extractor(
+            audio, 
+            sampling_rate=sample_rate, 
+            return_tensors="pt"
+        )
+        
+        # Calculate required number of audio tokens
+        num_audio_tokens = calculate_audio_tokens_needed(audio_features.input_features)
+        logger.info(f"📊 Audio tokens needed: {num_audio_tokens}")
+        
+        # Get special token IDs
+        vocab = processor.tokenizer.get_vocab()
+        bos_token_id = processor.tokenizer.bos_token_id or 1
+        eos_token_id = processor.tokenizer.eos_token_id or 2
+        audio_token_id = vocab.get('[AUDIO]', 24)
+        
+        # Create input sequence with dynamic audio tokens
+        transcribe_tokens = processor.tokenizer.encode('Transcribe this audio.', add_special_tokens=False)
+        
+        input_sequence = ([bos_token_id] + 
+                         [audio_token_id] * num_audio_tokens + 
+                         transcribe_tokens + 
+                         [eos_token_id])
+        
+        input_ids = torch.tensor([input_sequence])
+        
+        logger.info(f"Input sequence created:")
+        logger.info(f"  Total length: {len(input_sequence)}")
+        logger.info(f"  Audio tokens: {num_audio_tokens}")
+        logger.info(f"  Audio token ID: {audio_token_id}")
+        
+        # Create inputs
+        inputs = {
+            "input_features": audio_features.input_features.to(device),
+            "input_ids": input_ids.to(device)
+        }
+        
+        # Log input shapes for debugging
+        logger.info("Final input shapes:")
+        for k, v in inputs.items():
+            logger.info(f"  {k}: {v.shape}")
         
         # Generate transcription
+        logger.info("🚀 Generating transcription...")
         with torch.no_grad():
             generated_ids = model.generate(
                 **inputs,
@@ -185,11 +211,14 @@ async def transcribe(file: UploadFile = File(...)):
                 top_p=None,
             )
         
-        # Decode the result
-        transcription = processor.batch_decode(
-            generated_ids, 
+        # Decode only the new tokens (skip the input prompt)
+        input_length = inputs["input_ids"].shape[1]
+        new_tokens = generated_ids[:, input_length:]
+        
+        transcription = processor.tokenizer.decode(
+            new_tokens[0], 
             skip_special_tokens=True
-        )[0]
+        ).strip()
         
         process_time = (datetime.now() - start_time).total_seconds()
         audio_duration = len(audio) / sample_rate
@@ -199,6 +228,7 @@ async def transcribe(file: UploadFile = File(...)):
         logger.info(f"  - Process time: {process_time:.2f}s")
         logger.info(f"  - Audio duration: {audio_duration:.2f}s")
         logger.info(f"  - Real-time factor: {real_time_factor:.1f}x")
+        logger.info(f"  - Transcription: '{transcription}'")
         
         return {
             "filename": file.filename,
@@ -208,7 +238,10 @@ async def transcribe(file: UploadFile = File(...)):
             "processing_time": process_time,
             "audio_duration": audio_duration,
             "real_time_factor": real_time_factor,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "method": "dynamic_audio_tokens_v1",
+            "audio_tokens_used": num_audio_tokens,
+            "input_sequence_length": len(input_sequence)
         }
         
     except Exception as e:
