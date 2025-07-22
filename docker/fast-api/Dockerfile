@@ -1,5 +1,5 @@
-# Voxtral GPU Docker Image
-FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+# Fast API WhisperX GPU Docker Image
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -15,8 +15,9 @@ WORKDIR /app
 
 # Install Python dependencies
 RUN pip3 install --no-cache-dir \
-    torch \
-    torchaudio \
+    "numpy<2" \
+    torch==2.0.1 \
+    torchaudio==2.0.2 \
     transformers \
     accelerate \
     datasets \
@@ -26,18 +27,32 @@ RUN pip3 install --no-cache-dir \
     pydantic \
     python-multipart \
     boto3 \
-    requests
+    requests \
+    whisperx
 
-# Copy Voxtral server scripts
-COPY voxtral_server.py .
-COPY voxtral_server_v2.py .
+# Copy Fast API server scripts
+COPY fast_api_server.py .
+COPY fast_api_server_v2.py .
 
-# Expose API port
-EXPOSE 8000
+# Create health check script
+RUN echo '#!/usr/bin/env python3\n\
+import requests\n\
+import sys\n\
+try:\n\
+    response = requests.get("http://localhost:8080/health", timeout=5)\n\
+    if response.status_code == 200:\n\
+        sys.exit(0)\n\
+    else:\n\
+        sys.exit(1)\n\
+except Exception:\n\
+    sys.exit(1)' > /app/health_check.py && chmod +x /app/health_check.py
+
+# Expose API port and health check port
+EXPOSE 8000 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python3 /app/health_check.py || exit 1
 
 # Run the server
-CMD ["python3", "voxtral_server.py"]
+CMD ["python3", "fast_api_server.py"]

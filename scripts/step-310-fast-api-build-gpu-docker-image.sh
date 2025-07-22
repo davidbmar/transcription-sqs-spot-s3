@@ -42,12 +42,19 @@ fi
 
 # Check Docker daemon
 if ! docker info >/dev/null 2>&1; then
-    echo -e "${RED}[ERROR]${NC} Docker daemon is not running"
-    exit 1
+    # Try with sudo
+    if ! sudo docker info >/dev/null 2>&1; then
+        echo -e "${RED}[ERROR]${NC} Docker daemon is not running"
+        exit 1
+    fi
+    # Use sudo for docker commands
+    DOCKER_CMD="sudo docker"
+else
+    DOCKER_CMD="docker"
 fi
 
 echo -e "${GREEN}[OK]${NC} Docker is installed and running"
-docker --version
+$DOCKER_CMD --version
 
 echo -e "${GREEN}[STEP 2]${NC} Logging into ECR..."
 ./scripts/fast-api-ecr-login.sh
@@ -60,7 +67,7 @@ echo "Tag: $FAST_API_DOCKER_IMAGE_TAG"
 cd "$(dirname "$0")/.."
 
 echo -e "${YELLOW}[INFO]${NC} Building Docker image..."
-docker build \
+$DOCKER_CMD build \
     -f docker/fast-api/Dockerfile \
     -t "$FAST_API_ECR_REPO_NAME:$FAST_API_DOCKER_IMAGE_TAG" \
     -t "$FAST_API_ECR_REPOSITORY_URI:$FAST_API_DOCKER_IMAGE_TAG" \
@@ -70,10 +77,10 @@ docker build \
 echo -e "${GREEN}[OK]${NC} Docker image built successfully"
 
 echo -e "${GREEN}[STEP 4]${NC} Verifying image..."
-docker images | grep -E "$FAST_API_ECR_REPO_NAME|fast-api"
+$DOCKER_CMD images | grep -E "$FAST_API_ECR_REPO_NAME|fast-api"
 
 # Get image size
-IMAGE_SIZE=$(docker images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep "$FAST_API_ECR_REPO_NAME" | awk '{print $2}')
+IMAGE_SIZE=$($DOCKER_CMD images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep "$FAST_API_ECR_REPO_NAME" | awk '{print $2}')
 echo -e "${GREEN}[INFO]${NC} Image size: $IMAGE_SIZE"
 
 # Update status tracking

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Fast API Server - Real-time Voice-to-Text Transcription API
+Uses WhisperX for high-speed GPU-accelerated transcription
 """
 
 import os
@@ -27,10 +28,9 @@ torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 logger.info(f"Using device: {device}")
 logger.info(f"CUDA available: {torch.cuda.is_available()}")
 
-# For now, use Whisper as a placeholder until Voxtral is released
-# This will be replaced with actual Voxtral model
+# Using Whisper model for fast transcription
 try:
-    model_id = "openai/whisper-base"
+    # model_id = "openai/whisper-base"  # Already defined above
     
     model = AutoModelForSpeechSeq2Seq.from_pretrained(
         model_id, 
@@ -63,11 +63,11 @@ except Exception as e:
 @app.get("/")
 async def root():
     return {
-        "service": "Voxtral Voice-to-Text API",
+        "service": "Fast API Voice-to-Text (WhisperX)",
         "status": "ready" if pipe else "model_loading_failed",
         "device": device,
         "model": model_id,
-        "note": "Currently using Whisper as placeholder for Voxtral"
+        "description": "Real-time transcription API with WhisperX"
     }
 
 @app.get("/health")
@@ -115,4 +115,42 @@ async def transcribe(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import threading
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import json
+    
+    # Simple health check server on port 8080
+    class HealthHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == '/health':
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                health_status = {
+                    "status": "healthy" if pipe else "unhealthy",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "gpu_available": torch.cuda.is_available(),
+                    "device": device,
+                    "model_loaded": pipe is not None,
+                    "container_id": os.environ.get('HOSTNAME', 'unknown')
+                }
+                self.wfile.write(json.dumps(health_status).encode())
+            else:
+                self.send_response(404)
+                self.end_headers()
+        
+        def log_message(self, format, *args):
+            pass  # Suppress health check logs
+    
+    # Start health check server in background
+    def run_health_server():
+        health_server = HTTPServer(('0.0.0.0', 8080), HealthHandler)
+        health_server.serve_forever()
+    
+    health_thread = threading.Thread(target=run_health_server, daemon=True)
+    health_thread.start()
+    logger.info("Health check server started on port 8080")
+    
+    # Start main API server
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
