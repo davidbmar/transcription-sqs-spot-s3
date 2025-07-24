@@ -33,6 +33,11 @@ RUN pip3 install --no-cache-dir \
 # Copy Fast API server scripts
 COPY fast_api_server.py .
 COPY fast_api_server_v2.py .
+COPY fast_api_server_s3.py .
+COPY entrypoint.sh .
+
+# Make entrypoint executable
+RUN chmod +x entrypoint.sh
 
 # Create health check script
 RUN echo '#!/usr/bin/env python3\n\
@@ -54,5 +59,8 @@ EXPOSE 8000 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python3 /app/health_check.py || exit 1
 
-# Run the server
-CMD ["python3", "fast_api_server.py"]
+# Default to S3-enhanced server
+ENV SERVER_VERSION=s3
+
+# Run the server via entrypoint
+CMD ["./entrypoint.sh"]

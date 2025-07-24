@@ -97,17 +97,24 @@ fi
 # Test with curl command examples
 echo -e "${GREEN}[STEP 5]${NC} API Usage Examples..."
 echo
-echo -e "${YELLOW}[CURL EXAMPLES]${NC}"
-echo "1. Test with your own audio file:"
+echo -e "${YELLOW}[CURL EXAMPLES - 3 Endpoints Available]${NC}"
+echo "1. S3 to S3 transcription (s3:// URIs):"
+echo "   curl -X POST http://$PUBLIC_IP:8000/transcribe-s3 \\"
+echo "     -H 'Content-Type: application/json' \\"
+echo "     -d '{\"s3_input_path\": \"s3://bucket/audio.mp3\", \"s3_output_path\": \"s3://bucket/transcript.json\"}'"
+echo
+echo "2. URL transcription (http/https URLs):"
+echo "   curl -X POST http://$PUBLIC_IP:8000/transcribe-url \\"
+echo "     -H 'Content-Type: application/json' \\"
+echo "     -d '{\"audio_url\": \"https://example.com/audio.mp3\"}'"
+echo
+echo "3. File upload (original functionality):"
 echo "   curl -X POST -F 'file=@your_audio.mp3' http://$PUBLIC_IP:8000/transcribe"
 echo
-echo "2. Test from your Mac (if you have an audio file):"
-echo "   curl -X POST -F 'file=@/path/to/audio.wav' http://$PUBLIC_IP:8000/transcribe"
-echo
-echo "3. Health check:"
+echo "4. Health check (shows s3_enabled: true):"
 echo "   curl http://$PUBLIC_IP:8000/health"
 echo
-echo "4. API documentation:"
+echo "5. API documentation:"
 echo "   Open http://$PUBLIC_IP:8000/docs in your browser"
 
 # Test API docs endpoint
@@ -126,11 +133,16 @@ echo -e "${BLUE}======================================${NC}"
 echo -e "${GREEN}✅ Fast API Test Complete${NC}"
 echo -e "${BLUE}======================================${NC}"
 echo
-echo -e "${GREEN}[API ENDPOINTS]${NC}"
-echo "Health:        http://$PUBLIC_IP:8000/health"
-echo "Main:          http://$PUBLIC_IP:8000/"
-echo "Transcribe:    POST http://$PUBLIC_IP:8000/transcribe"
-echo "Documentation: http://$PUBLIC_IP:8000/docs"
+echo -e "${GREEN}[API ENDPOINTS - S3-Enhanced Version]${NC}"
+echo "Health:           http://$PUBLIC_IP:8000/health"
+echo "Main:             http://$PUBLIC_IP:8000/"
+echo "S3 Transcription: POST http://$PUBLIC_IP:8000/transcribe-s3"
+echo "URL Transcription:POST http://$PUBLIC_IP:8000/transcribe-url"
+echo "File Upload:      POST http://$PUBLIC_IP:8000/transcribe"
+echo "Documentation:    http://$PUBLIC_IP:8000/docs"
 echo
-echo -e "${YELLOW}[NOTE]${NC} The /transcribe endpoint requires a POST request with file upload"
-echo "Use the curl examples above or the Swagger docs to test properly."
+echo -e "${YELLOW}[ENDPOINT USAGE]${NC}"
+echo "• /transcribe-s3:  Use with s3:// URIs for input/output"
+echo "• /transcribe-url: Use with http:// or https:// URLs"
+echo "• /transcribe:     Use with file uploads (multipart/form-data)"
+echo "• Health endpoint: Returns s3_enabled: true for enhanced version"

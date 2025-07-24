@@ -248,7 +248,10 @@ echo
 echo -e "${GREEN}[ACCESS]${NC}"
 echo "SSH: ssh -i $KEY_NAME.pem ubuntu@$PUBLIC_IP"
 echo "API: http://$PUBLIC_IP:8000"
-echo "Health: http://$PUBLIC_IP:8000/health"
+echo "Health: http://$PUBLIC_IP:8000/health (shows s3_enabled status)"
+echo "S3 API: http://$PUBLIC_IP:8000/transcribe-s3"
+echo "URL API: http://$PUBLIC_IP:8000/transcribe-url"  
+echo "Docs: http://$PUBLIC_IP:8000/docs"
 echo
 echo -e "${GREEN}[MONITORING]${NC}"
 echo "View setup logs:"
@@ -261,7 +264,16 @@ echo -e "${YELLOW}[NOTE]${NC} Wait 3-5 minutes for setup to complete"
 echo
 echo -e "${GREEN}[NEXT STEPS]${NC}"
 echo "1. Check instance health:"
-echo "   ./scripts/step-325-fast-api-check-gpu-health.sh"
+echo "   ./scripts/step-326-fast-api-check-gpu-health.sh"
 echo
 echo "2. Test voice transcription:"
-echo "   ./scripts/step-330-fast-api-test-voice-transcription.sh"
+echo "   ./scripts/step-330-fast-api-test-transcription.sh"
+echo
+echo -e "${GREEN}[QUICK USAGE EXAMPLES]${NC}"
+echo "S3 to S3 transcription:"
+echo "  curl -X POST http://$PUBLIC_IP:8000/transcribe-s3 \\"
+echo "    -H 'Content-Type: application/json' \\"
+echo "    -d '{\"s3_input_path\": \"s3://bucket/audio.mp3\", \"s3_output_path\": \"s3://bucket/transcript.json\"}'"
+echo
+echo "File upload:"
+echo "  curl -X POST -F 'file=@audio.mp3' http://$PUBLIC_IP:8000/transcribe"

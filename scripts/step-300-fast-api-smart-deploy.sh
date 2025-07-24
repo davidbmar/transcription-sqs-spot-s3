@@ -13,13 +13,26 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
-# Check for --headless flag
+# Parse command line arguments
 HEADLESS=false
+USE_TAG=""
 for arg in "$@"; do
-    if [ "$arg" = "--headless" ]; then
-        HEADLESS=true
-        break
-    fi
+    case "$arg" in
+        --headless)
+            HEADLESS=true
+            ;;
+        --tag=*)
+            USE_TAG="${arg#*=}"
+            ;;
+        --help)
+            echo "Usage: $0 [options]"
+            echo "Options:"
+            echo "  --headless      Skip intro screen"
+            echo "  --tag=TAG       Deploy specific image tag (e.g., --tag=fixed)"
+            echo "  --help          Show this help message"
+            exit 0
+            ;;
+    esac
 done
 
 # Function to display intro screen
@@ -179,7 +192,8 @@ else
     ECR_IMAGE_COUNT_MAIN=$(echo "$ECR_IMAGES_MAIN" | jq '. | length' 2>/dev/null || echo "0")
     
     if [ "$ECR_IMAGE_COUNT_MAIN" -gt 0 ]; then
-        echo -e "${GREEN}✓ Found $ECR_IMAGE_COUNT_MAIN ECR image(s):${NC}"
+        echo -e "${GREEN}✓ Found $ECR_IMAGE_COUNT_MAIN Fast API (WhisperX) image(s) in ECR:${NC}"
+        echo -e "${CYAN}Repository: ${QUEUE_PREFIX}-fast-api-gpu${NC}"
         echo
         
         # Display ECR images with details and descriptions
@@ -192,13 +206,17 @@ else
             
             # Add descriptive information based on tag
             case "${IMAGE_TAG:-latest}" in
+                "s3-enhanced"|"latest-s3")
+                    IMAGE_DESC="${GREEN}S3-enhanced with 3 endpoints - RECOMMENDED${NC}"
+                    RECOMMENDATION="${GREEN}✓ Use this (S3 + URL + Upload)${NC}"
+                    ;;
                 "fixed")
-                    IMAGE_DESC="${GREEN}NumPy compatibility fix - RECOMMENDED${NC}"
-                    RECOMMENDATION="${GREEN}✓ Use this${NC}"
+                    IMAGE_DESC="${YELLOW}NumPy fix (no S3 support)${NC}"
+                    RECOMMENDATION="${YELLOW}△ Basic version${NC}"
                     ;;
                 "latest")
-                    IMAGE_DESC="${YELLOW}Standard build${NC}"
-                    RECOMMENDATION="${YELLOW}⚠ May have NumPy issues${NC}"
+                    IMAGE_DESC="${RED}Standard build${NC}"
+                    RECOMMENDATION="${RED}⚠ NumPy issues + no S3${NC}"
                     ;;
                 "gpu")
                     IMAGE_DESC="${BLUE}GPU-optimized build${NC}"
@@ -231,8 +249,63 @@ else
         echo -e "${GREEN}🎉 Scenario 3: DEPLOY ONLY - Ready to launch!${NC}"
         echo -e "${WHITE}Use existing image(s) to launch new instances.${NC}"
         echo
-        echo -e "${YELLOW}[INFO]${NC} Full deployment logic coming soon..."
-        echo "  - Launch instance: ./scripts/step-320-fast-api-launch-gpu-instances.sh"
+        
+        # Check if tag was specified via command line
+        if [ -n "$USE_TAG" ]; then
+            # Verify the tag exists
+            TAG_EXISTS=$(echo "$ECR_IMAGES_MAIN" | jq -r --arg tag "$USE_TAG" '.[] | select(.[0] == $tag) | .[0]' 2>/dev/null || echo "")
+            if [ -n "$TAG_EXISTS" ]; then
+                echo -e "${GREEN}[AUTO-DEPLOY]${NC} Using specified tag: $USE_TAG"
+                sed -i "s/FAST_API_DOCKER_IMAGE_TAG=.*/FAST_API_DOCKER_IMAGE_TAG=$USE_TAG/" .env
+                echo
+                ./scripts/step-320-fast-api-launch-gpu-instances.sh
+                exit 0
+            else
+                echo -e "${RED}[ERROR]${NC} Tag '$USE_TAG' not found in ECR"
+                echo -e "${YELLOW}[INFO]${NC} Available tags:"
+                echo "$ECR_IMAGES_MAIN" | jq -r '.[] | "  - " + .[0]'
+                exit 1
+            fi
+        fi
+        
+        # Prompt for image selection
+        echo -e "${YELLOW}[SELECT IMAGE]${NC} Which image would you like to deploy?"
+        echo
+        
+        # Create selection menu
+        PS3="Enter your choice (1-$ECR_IMAGE_COUNT_MAIN): "
+        IMAGE_OPTIONS=()
+        for i in $(seq 0 $((ECR_IMAGE_COUNT_MAIN-1))); do
+            TAG=$(echo "$ECR_IMAGES_MAIN" | jq -r ".[$i][0]")
+            SIZE=$(echo "$ECR_IMAGES_MAIN" | jq -r ".[$i][3]")
+            SIZE_MB=$((SIZE / 1024 / 1024))
+            IMAGE_OPTIONS+=("Tag: ${TAG:-latest} (${SIZE_MB}MB)")
+        done
+        
+        select IMAGE_CHOICE in "${IMAGE_OPTIONS[@]}" "Cancel"; do
+            if [ "$IMAGE_CHOICE" = "Cancel" ]; then
+                echo -e "${YELLOW}[INFO]${NC} Deployment cancelled."
+                exit 0
+            elif [ -n "$IMAGE_CHOICE" ]; then
+                SELECTED_INDEX=$((REPLY-1))
+                SELECTED_TAG=$(echo "$ECR_IMAGES_MAIN" | jq -r ".[$SELECTED_INDEX][0]")
+                echo
+                echo -e "${GREEN}[SELECTED]${NC} Will deploy with tag: ${SELECTED_TAG:-latest}"
+                echo
+                
+                # Update .env file with selected tag
+                echo -e "${YELLOW}[INFO]${NC} Updating configuration to use selected image..."
+                sed -i "s/FAST_API_DOCKER_IMAGE_TAG=.*/FAST_API_DOCKER_IMAGE_TAG=${SELECTED_TAG:-latest}/" .env
+                
+                # Launch the instance
+                echo -e "${GREEN}[DEPLOYING]${NC} Launching GPU instance with selected image..."
+                echo
+                ./scripts/step-320-fast-api-launch-gpu-instances.sh
+                break
+            else
+                echo -e "${RED}[ERROR]${NC} Invalid selection. Please try again."
+            fi
+        done
         
     else
         echo -e "${YELLOW}⚠ No images found in ECR${NC}"
