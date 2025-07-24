@@ -180,7 +180,113 @@ if [ "$INSTANCE_COUNT" -gt 0 ]; then
 else
     echo -e "${YELLOW}⚠ No running Fast API instances found${NC}"
     echo
-    echo -e "${GREEN}[STEP 2]${NC} Checking ECR for existing images..."
+    
+    # Check for stopped instances first
+    echo -e "${GREEN}[STEP 2]${NC} Checking for stopped Fast API instances..."
+    
+    STOPPED_INSTANCES=$(aws ec2 describe-instances \
+        --filters "Name=tag:Type,Values=fast-api-worker" "Name=instance-state-name,Values=stopped" \
+        --region "$AWS_REGION" \
+        --query 'Reservations[*].Instances[*].[InstanceId,ImageId,InstanceType,LaunchTime]' \
+        --output json 2>/dev/null || echo "[]")
+    
+    STOPPED_FLATTENED=$(echo "$STOPPED_INSTANCES" | jq -r 'flatten(1)')
+    STOPPED_COUNT=$(echo "$STOPPED_FLATTENED" | jq '. | length')
+    
+    if [ "$STOPPED_COUNT" -gt 0 ]; then
+        echo -e "${GREEN}✓ Found $STOPPED_COUNT stopped Fast API instance(s):${NC}"
+        echo
+        
+        # Display stopped instances
+        for i in $(seq 0 $((STOPPED_COUNT-1))); do
+            INSTANCE_ID=$(echo "$STOPPED_FLATTENED" | jq -r ".[$i][0]")
+            IMAGE_ID=$(echo "$STOPPED_FLATTENED" | jq -r ".[$i][1]")
+            INSTANCE_TYPE=$(echo "$STOPPED_FLATTENED" | jq -r ".[$i][2]")
+            LAUNCH_TIME=$(echo "$STOPPED_FLATTENED" | jq -r ".[$i][3]")
+            
+            echo -e "  ${CYAN}Instance $((i+1)):${NC}"
+            echo -e "    ID: $INSTANCE_ID"
+            echo -e "    Type: $INSTANCE_TYPE"
+            echo -e "    Image: $IMAGE_ID"
+            echo -e "    Last Launch: $LAUNCH_TIME"
+            echo
+        done
+        
+        echo -e "${GREEN}🎉 Scenario 2: RESTART STOPPED - Ready to restart!${NC}"
+        echo -e "${WHITE}These instances have cached Docker images and will start quickly (~2-3 minutes).${NC}"
+        echo
+        
+        # Ask user if they want to restart the stopped instances
+        echo -e "${YELLOW}[RESTART OPTION]${NC} Would you like to restart the stopped instance(s)?"
+        echo "This will start the existing instances with their cached Docker images."
+        echo
+        
+        read -p "Restart stopped instances? (y/N): " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${GREEN}[RESTARTING]${NC} Starting stopped Fast API instances..."
+            echo
+            
+            # Start all stopped instances
+            INSTANCE_IDS=$(echo "$STOPPED_FLATTENED" | jq -r '.[] | .[0]' | tr '\n' ' ')
+            
+            echo -e "${YELLOW}[INFO]${NC} Starting instances: $INSTANCE_IDS"
+            aws ec2 start-instances --instance-ids $INSTANCE_IDS --region "$AWS_REGION"
+            
+            echo -e "${YELLOW}[INFO]${NC} Waiting for instances to be running..."
+            aws ec2 wait instance-running --instance-ids $INSTANCE_IDS --region "$AWS_REGION"
+            
+            # Get updated instance information
+            RESTARTED_INSTANCES=$(aws ec2 describe-instances \
+                --instance-ids $INSTANCE_IDS \
+                --region "$AWS_REGION" \
+                --query 'Reservations[*].Instances[*].[InstanceId,PublicIpAddress,PrivateIpAddress]' \
+                --output json)
+            
+            echo
+            echo -e "${BLUE}======================================${NC}"
+            echo -e "${GREEN}✅ Fast API Instances Restarted${NC}"
+            echo -e "${BLUE}======================================${NC}"
+            echo
+            
+            # Display restarted instances with API endpoints
+            RESTARTED_FLATTENED=$(echo "$RESTARTED_INSTANCES" | jq -r 'flatten(1)')
+            RESTARTED_COUNT=$(echo "$RESTARTED_FLATTENED" | jq '. | length')
+            
+            for i in $(seq 0 $((RESTARTED_COUNT-1))); do
+                INSTANCE_ID=$(echo "$RESTARTED_FLATTENED" | jq -r ".[$i][0]")
+                PUBLIC_IP=$(echo "$RESTARTED_FLATTENED" | jq -r ".[$i][1]")
+                PRIVATE_IP=$(echo "$RESTARTED_FLATTENED" | jq -r ".[$i][2]")
+                
+                echo -e "${GREEN}[INSTANCE $((i+1))]${NC}"
+                echo "Instance ID: $INSTANCE_ID"
+                echo "Public IP: $PUBLIC_IP"
+                echo "Private IP: $PRIVATE_IP"
+                echo "API Endpoint: http://$PUBLIC_IP:8000"
+                echo "Health Check: http://$PUBLIC_IP:8000/health"
+                echo "Documentation: http://$PUBLIC_IP:8000/docs"
+                echo
+            done
+            
+            echo -e "${GREEN}[USAGE]${NC}"
+            echo "Test transcription:"
+            echo "  ./scripts/step-330-fast-api-test-transcription.sh"
+            echo
+            echo "Direct API calls:"
+            FIRST_IP=$(echo "$RESTARTED_FLATTENED" | jq -r ".[0][1]")
+            echo "  curl -X POST http://$FIRST_IP:8000/transcribe-s3 \\"
+            echo "    -H 'Content-Type: application/json' \\"
+            echo "    -d '{\"s3_input_path\": \"s3://bucket/audio.mp3\", \"s3_output_path\": \"s3://bucket/transcript.json\"}'"
+            
+            exit 0
+        else
+            echo -e "${YELLOW}[INFO]${NC} Skipping restart. Proceeding to other deployment options..."
+            echo
+        fi
+    fi
+    
+    echo -e "${GREEN}[STEP 3]${NC} Checking ECR for existing images..."
     
     # Get ECR images for main deployment logic too
     ECR_IMAGES_MAIN=$(aws ecr describe-images \
