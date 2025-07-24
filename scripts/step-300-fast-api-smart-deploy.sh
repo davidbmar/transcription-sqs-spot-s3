@@ -216,30 +216,57 @@ else
         echo -e "${WHITE}These instances have cached Docker images and will start quickly (~2-3 minutes).${NC}"
         echo
         
-        # Ask user if they want to restart the stopped instances
-        echo -e "${YELLOW}[RESTART OPTION]${NC} Would you like to restart the stopped instance(s)?"
-        echo "This will start the existing instances with their cached Docker images."
+        # Ask user which instances to restart
+        echo -e "${YELLOW}[RESTART OPTION]${NC} Which instances would you like to restart?"
+        echo "Select instances to start with their cached Docker images:"
         echo
         
-        read -p "Restart stopped instances? (y/N): " -n 1 -r
-        echo
+        # Create selection menu for instances
+        INSTANCE_OPTIONS=()
+        for i in $(seq 0 $((STOPPED_COUNT-1))); do
+            INSTANCE_ID=$(echo "$STOPPED_FLATTENED" | jq -r ".[$i][0]")
+            INSTANCE_TYPE=$(echo "$STOPPED_FLATTENED" | jq -r ".[$i][2]")
+            LAUNCH_TIME=$(echo "$STOPPED_FLATTENED" | jq -r ".[$i][3]" | cut -d'T' -f1)
+            INSTANCE_OPTIONS+=("$INSTANCE_ID ($INSTANCE_TYPE, launched $LAUNCH_TIME)")
+        done
+        INSTANCE_OPTIONS+=("All instances")
+        INSTANCE_OPTIONS+=("Cancel")
         
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            echo -e "${GREEN}[RESTARTING]${NC} Starting stopped Fast API instances..."
-            echo
-            
-            # Start all stopped instances
-            INSTANCE_IDS=$(echo "$STOPPED_FLATTENED" | jq -r '.[] | .[0]' | tr '\n' ' ')
-            
-            echo -e "${YELLOW}[INFO]${NC} Starting instances: $INSTANCE_IDS"
-            aws ec2 start-instances --instance-ids $INSTANCE_IDS --region "$AWS_REGION"
+        PS3="Select instances to restart: "
+        select RESTART_CHOICE in "${INSTANCE_OPTIONS[@]}"; do
+            if [ "$RESTART_CHOICE" = "Cancel" ]; then
+                echo -e "${YELLOW}[INFO]${NC} Restart cancelled."
+                break
+            elif [ "$RESTART_CHOICE" = "All instances" ]; then
+                # Start all stopped instances
+                SELECTED_INSTANCE_IDS=$(echo "$STOPPED_FLATTENED" | jq -r '.[] | .[0]' | tr '\n' ' ')
+                echo -e "${GREEN}[RESTARTING]${NC} Starting all $STOPPED_COUNT stopped Fast API instances..."
+                echo
+                break
+            elif [ -n "$RESTART_CHOICE" ]; then
+                # Start selected instance
+                SELECTED_INDEX=$((REPLY-1))
+                SELECTED_INSTANCE_ID=$(echo "$STOPPED_FLATTENED" | jq -r ".[$SELECTED_INDEX][0]")
+                SELECTED_INSTANCE_IDS="$SELECTED_INSTANCE_ID"
+                echo -e "${GREEN}[RESTARTING]${NC} Starting selected instance: $SELECTED_INSTANCE_ID"
+                echo
+                break
+            else
+                echo -e "${RED}[ERROR]${NC} Invalid selection. Please try again."
+            fi
+        done
+        
+        # Only proceed if instances were selected (not cancelled)
+        if [ "$RESTART_CHOICE" != "Cancel" ] && [ -n "$SELECTED_INSTANCE_IDS" ]; then
+            echo -e "${YELLOW}[INFO]${NC} Starting instances: $SELECTED_INSTANCE_IDS"
+            aws ec2 start-instances --instance-ids $SELECTED_INSTANCE_IDS --region "$AWS_REGION"
             
             echo -e "${YELLOW}[INFO]${NC} Waiting for instances to be running..."
-            aws ec2 wait instance-running --instance-ids $INSTANCE_IDS --region "$AWS_REGION"
+            aws ec2 wait instance-running --instance-ids $SELECTED_INSTANCE_IDS --region "$AWS_REGION"
             
             # Get updated instance information
             RESTARTED_INSTANCES=$(aws ec2 describe-instances \
-                --instance-ids $INSTANCE_IDS \
+                --instance-ids $SELECTED_INSTANCE_IDS \
                 --region "$AWS_REGION" \
                 --query 'Reservations[*].Instances[*].[InstanceId,PublicIpAddress,PrivateIpAddress]' \
                 --output json)
