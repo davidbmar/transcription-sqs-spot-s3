@@ -182,7 +182,7 @@ else
         echo -e "${GREEN}✓ Found $ECR_IMAGE_COUNT_MAIN ECR image(s):${NC}"
         echo
         
-        # Display ECR images with details
+        # Display ECR images with details and descriptions
         for i in $(seq 0 $((ECR_IMAGE_COUNT_MAIN-1))); do
             IMAGE_TAG=$(echo "$ECR_IMAGES_MAIN" | jq -r ".[$i][0]")
             IMAGE_DIGEST=$(echo "$ECR_IMAGES_MAIN" | jq -r ".[$i][1] | split(\":\")[1][0:12]")
@@ -190,15 +190,45 @@ else
             IMAGE_SIZE=$(echo "$ECR_IMAGES_MAIN" | jq -r ".[$i][3]")
             IMAGE_SIZE_MB=$((IMAGE_SIZE / 1024 / 1024))
             
-            echo -e "  ${CYAN}Image $((i+1)):${NC}"
-            echo -e "    Tag: ${IMAGE_TAG:-latest}"
+            # Add descriptive information based on tag
+            case "${IMAGE_TAG:-latest}" in
+                "fixed")
+                    IMAGE_DESC="${GREEN}NumPy compatibility fix - RECOMMENDED${NC}"
+                    RECOMMENDATION="${GREEN}✓ Use this${NC}"
+                    ;;
+                "latest")
+                    IMAGE_DESC="${YELLOW}Standard build${NC}"
+                    RECOMMENDATION="${YELLOW}⚠ May have NumPy issues${NC}"
+                    ;;
+                "gpu")
+                    IMAGE_DESC="${BLUE}GPU-optimized build${NC}"
+                    RECOMMENDATION="${BLUE}□ GPU version${NC}"
+                    ;;
+                *)
+                    IMAGE_DESC="${CYAN}Custom build${NC}"
+                    RECOMMENDATION="${CYAN}□ Check compatibility${NC}"
+                    ;;
+            esac
+            
+            echo -e "  ${CYAN}Image $((i+1)):${NC} $IMAGE_DESC"
+            echo -e "    Tag: ${IMAGE_TAG:-latest} ($RECOMMENDATION)"
             echo -e "    Digest: sha256:$IMAGE_DIGEST..."
             echo -e "    Size: ${IMAGE_SIZE_MB}MB"
             echo -e "    Pushed: $PUSH_TIME"
             echo
         done
         
-        echo -e "${GREEN}🎉 Scenario 2: DEPLOY ONLY - Ready to launch!${NC}"
+        # Show recommendation for which image to use
+        RECOMMENDED_TAG=$(echo "$ECR_IMAGES_MAIN" | jq -r '.[] | select(.[0] == "fixed") | .[0]' 2>/dev/null || echo "")
+        if [ -n "$RECOMMENDED_TAG" ]; then
+            echo -e "${GREEN}💡 RECOMMENDATION: Use the 'fixed' tag image (NumPy compatibility resolved)${NC}"
+        else
+            LATEST_TAG=$(echo "$ECR_IMAGES_MAIN" | jq -r 'max_by(.[2]) | .[0]' 2>/dev/null || echo "latest")
+            echo -e "${YELLOW}💡 RECOMMENDATION: Use most recent image ('$LATEST_TAG' tag)${NC}"
+        fi
+        echo
+        
+        echo -e "${GREEN}🎉 Scenario 3: DEPLOY ONLY - Ready to launch!${NC}"
         echo -e "${WHITE}Use existing image(s) to launch new instances.${NC}"
         echo
         echo -e "${YELLOW}[INFO]${NC} Full deployment logic coming soon..."
